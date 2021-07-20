@@ -6,6 +6,7 @@ use ff::{Field, PrimeField};
 use groupy::{CurveAffine, CurveProjective};
 use rand_core::RngCore;
 use rayon::prelude::*;
+use chrono::*;
 
 use super::{ParameterSource, Proof};
 use crate::domain::{EvaluationDomain, Scalar};
@@ -273,6 +274,8 @@ where
     E: Engine,
     C: Circuit<E> + Send,
 {
+    let start_api = Local::now().timestamp();
+    let start_enty = Local::now().timestamp();
     info!("Bellperson {} is being used!", BELLMAN_VERSION);
 
     // Preparing things for the proofs is done a lot in parallel with the help of Rayon. Make
@@ -312,6 +315,10 @@ where
 
     let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
 
+    let end = Local::now().timestamp();
+    println!("[DEBUG] CPBP-1 create_proof_batch_priority, params prepare  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+    let start_enty = Local::now().timestamp();
+
     let a_s = provers
         .iter_mut()
         .map(|prover| {
@@ -348,6 +355,10 @@ where
     drop(fft_kern);
     let mut multiexp_kern = Some(LockedMultiexpKernel::<E>::new(log_d, priority));
 
+    let end = Local::now().timestamp();
+    println!("[DEBUG] CPBP-2 a_s DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+    let start_enty = Local::now().timestamp();
+
     let h_s = a_s
         .into_iter()
         .map(|a| {
@@ -362,6 +373,10 @@ where
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
 
+    let end = Local::now().timestamp();
+    println!("[DEBUG] CPBP-3 h_s DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+    let start_enty = Local::now().timestamp();
+
     let l_s = aux_assignments
         .iter()
         .map(|aux_assignment| {
@@ -375,6 +390,10 @@ where
             Ok(l)
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+
+    let end = Local::now().timestamp();
+    println!("[DEBUG] CPBP-4 l_s DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+    let start_enty = Local::now().timestamp();
 
     let inputs = provers
         .into_iter()
@@ -456,6 +475,10 @@ where
         .collect::<Result<Vec<_>, SynthesisError>>()?;
     drop(multiexp_kern);
 
+    let end = Local::now().timestamp();
+    println!("[DEBUG] CPBP-5 input DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+    let start_enty = Local::now().timestamp();
+
     let proofs = h_s
         .into_iter()
         .zip(l_s.into_iter())
@@ -512,6 +535,10 @@ where
         )
         .collect::<Result<Vec<_>, SynthesisError>>()?;
 
+    let end = Local::now().timestamp();
+    println!("[DEBUG] CPBP-6 proof computation DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+    let start_enty = Local::now().timestamp();
+
     #[cfg(feature = "gpu")]
     {
         trace!("dropping priority lock");
@@ -520,6 +547,12 @@ where
 
     let proof_time = start.elapsed();
     info!("prover time: {:?}", proof_time);
+
+    let end = Local::now().timestamp();
+    println!("[DEBUG] CPBP-else DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+    let end_api = Local::now().timestamp();
+    println!("[DEBUG] CPBP DONE \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_api, end_api, end_api - start_api);
+
 
     Ok(proofs)
 }
