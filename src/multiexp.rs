@@ -11,6 +11,7 @@ use rayon::prelude::*;
 use super::multicore::{Waiter, Worker};
 use super::SynthesisError;
 use crate::gpu;
+use chrono::Local;
 
 /// An object that builds a source of bases.
 pub trait SourceBuilder<G: CurveAffine>: Send + Sync + 'static + Clone {
@@ -299,18 +300,24 @@ where
     G::Engine: crate::bls::Engine,
     S: SourceBuilder<G>,
 {
+    let start_all = Local::now().timestamp();
     if let Some(ref mut kern) = kern {
         if let Ok(p) = kern.with(|k: &mut gpu::MultiexpKernel<G::Engine>| {
             let mut exps = vec![exponents[0]; exponents.len()];
             let mut n = 0;
+            let start_enty = Local::now().timestamp();
             for (&e, d) in exponents.iter().zip(density_map.as_ref().iter()) {
                 if d {
                     exps[n] = e;
                     n += 1;
                 }
             }
-
+            let end = Local::now().timestamp();
+            println!("[DEBUG] multiexp-1 kern with ok DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+            let start_enty = Local::now().timestamp();
             let (bss, skip) = bases.clone().get();
+            let end = Local::now().timestamp();
+            println!("[DEBUG] multiexp-2 bases clone DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
             k.multiexp(pool, bss, Arc::new(exps.clone()), skip, n)
         }) {
             return Waiter::done(Ok(p));
@@ -328,8 +335,12 @@ where
         // inconsistent with the number of exponents.
         assert!(query_size == exponents.len());
     }
-
+    let start_enty = Local::now().timestamp();
     let result = pool.compute(move || multiexp_inner(bases, density_map, exponents, c));
+    let end = Local::now().timestamp();
+    println!("[DEBUG] multiexp-3 pool compute DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+
+    let start_enty = Local::now().timestamp();
     #[cfg(feature = "gpu")]
     {
         // Do not give the control back to the caller till the
@@ -338,6 +349,10 @@ where
         let result = result.wait();
         Waiter::done(result)
     }
+    let end = Local::now().timestamp();
+    println!("[DEBUG] multiexp-4 gpu result DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+    let end = Local::now().timestamp();
+    println!("[DEBUG] multiexp-all DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_all, end, end - start_all);
     #[cfg(not(feature = "gpu"))]
     result
 }

@@ -12,6 +12,7 @@ use rayon::prelude::*;
 use rust_gpu_tools::*;
 use std::any::TypeId;
 use std::sync::Arc;
+use chrono::Local;
 
 const MAX_WINDOW_SIZE: usize = 10;
 const LOCAL_WORK_SIZE: usize = 256;
@@ -274,6 +275,7 @@ where
         G: CurveAffine,
         <G as groupy::CurveAffine>::Engine: crate::bls::Engine,
     {
+        let start_enty = Local::now().timestamp();
         let num_devices = self.kernels.len();
         // Bases are skipped by `self.1` elements, when converted from (Arc<Vec<G>>, usize) to Source
         // https://github.com/zkcrypto/bellman/blob/10c5010fd9c2ca69442dc9775ea271e286e776d8/src/multiexp.rs#L38
@@ -288,7 +290,7 @@ where
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
 
         let mut acc = <G as CurveAffine>::Projective::zero();
-
+        let start_install = Local::now().timestamp();
         let results = crate::multicore::THREAD_POOL.install(|| {
             if n > 0 {
                 bases
@@ -311,6 +313,8 @@ where
                 Vec::new()
             }
         });
+        let end = Local::now().timestamp();
+        println!("[DEBUG] multiexp<G>-1 install DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_install, end, end - start_install);
 
         let cpu_acc = cpu_multiexp(
             &pool,
@@ -328,7 +332,8 @@ where
         }
 
         acc.add_assign(&cpu_acc.wait().unwrap());
-
+        let end = Local::now().timestamp();
+        println!("[DEBUG] multiexp<G>-2 exps clone DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
         Ok(acc)
     }
 }
