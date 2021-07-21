@@ -347,12 +347,12 @@ where
         // multiexp is done. We may want to reacquire the GPU again
         // between the multiexps.
         let result = result.wait();
+        let end = Local::now().timestamp();
+        println!("[DEBUG] multiexp-4 gpu result DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+        let end = Local::now().timestamp();
+        println!("[DEBUG] multiexp-all DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_all, end, end - start_all);
         Waiter::done(result)
     }
-    let end = Local::now().timestamp();
-    println!("[DEBUG] multiexp-4 gpu result DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
-    let end = Local::now().timestamp();
-    println!("[DEBUG] multiexp-all DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_all, end, end - start_all);
     #[cfg(not(feature = "gpu"))]
     result
 }
