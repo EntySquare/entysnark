@@ -111,6 +111,10 @@ version = "0.9"
 
 [dependencies.thiserror]
 version = "1.0.10"
+
+[dependencies.scoped_threadpool]
+version = "0.1.*"
+
 [dev-dependencies.criterion]
 version = "0.3.2"
 

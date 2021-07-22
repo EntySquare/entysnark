@@ -75,7 +75,7 @@ pub fn get_core_count(d: &opencl::Device) -> usize {
 }
 
 pub fn dump_device_list() {
-    for d in opencl::Device::all() {
+    for d in opencl::Device::all().unwrap() {
         info!("Device: {:?}", d);
     }
 }
