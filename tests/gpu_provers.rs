@@ -58,14 +58,14 @@ pub fn test_parallel_prover() {
     // Higher prio circuit
     let c = DummyDemo {
         #[cfg(not(feature = "_coverage"))]
-        interations: 10_000,
+        interations: 1_000,
         #[cfg(feature = "_coverage")]
         interations: 100,
     };
     // Lower prio circuit
     let c2 = DummyDemo {
         #[cfg(not(feature = "_coverage"))]
-        interations: 500_000,
+        interations: 5_000,
         #[cfg(feature = "_coverage")]
         interations: 5000,
     };
