@@ -17,7 +17,7 @@ use std::time::Instant;
 use std::sync::mpsc;
 extern crate scoped_threadpool;
 use scoped_threadpool::Pool;
-const MAX_WINDOW_SIZE: usize = 11;
+const MAX_WINDOW_SIZE: usize = 10;
 const LOCAL_WORK_SIZE: usize = 256;
 const MEMORY_PADDING: f64 = 0.2f64; // Let 20% of GPU memory be free
 
@@ -322,15 +322,15 @@ where
                                 let mut acc = <G as CurveAffine>::Projective::zero();
                                 let mut jack_chunk = kern.n;
                                 let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
-                                info!("GABEDEBUG: start size_result:{}, jack_chunk:{},", size_result,jack_chunk);
+                                println!("GABEDEBUG: start size_result:{}, jack_chunk:{},", size_result,jack_chunk);
                                 if size_result > 144 {
                                     jack_chunk = (jack_chunk as f64 / 15f64).ceil() as usize;
-                                    info!("GABEDEBUG: >144 size_result:{}, jack_chunk:{},", size_result,jack_chunk);
+                                    println!("GABEDEBUG: >144 size_result:{}, jack_chunk:{},", size_result,jack_chunk);
                                 }else{
                                     jack_chunk = (jack_chunk as f64 / 1.2f64).ceil() as usize;
-                                    info!("GABEDEBUG: <=144 size_result:{}, jack_chunk:{},", size_result,jack_chunk);
+                                    println!("GABEDEBUG: <=144 size_result:{}, jack_chunk:{},", size_result,jack_chunk);
                                 }
-                                info!("GABEDEBUG: end size_result:{}, jack_chunk:{},", size_result,jack_chunk);
+                                println!("GABEDEBUG: end size_result:{}, jack_chunk:{},", size_result,jack_chunk);
                                 for (bases, exps) in bases.chunks(jack_chunk).zip(exps.chunks(jack_chunk)) {
                                     let result = kern.multiexp(bases, exps, bases.len())?;
                                     acc.add_assign(&result);
