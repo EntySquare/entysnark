@@ -143,15 +143,19 @@ where
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         let num_groups = calc_num_groups(self.core_count, num_windows);
         let bucket_len = 1 << window_size;
+        println!("SingleMultiexpKernel.multiexp: \n exp_bits:{},\n window_size:{},\n num_windows:{},\n num_groups:{},\n bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
 
-        // let size1 = std::mem::size_of::<G>();
-        // let size2 = std::mem::size_of::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>();
-        // let size3 = std::mem::size_of::<<G as CurveAffine>::Projective>();
-        // let mem1 = size1 * n;
-        // let mem2 = size2 * n;
-        // let mem3 = size3 * 4 * self.core_count * bucket_len;
-        // let mem4 = size3 * 4 * self.core_count;
-        // info!("ZQ: GPU mem need: {}Mbyte", (mem1 + mem2 + mem3 + mem4)/(1024*1024));
+        let size1 = std::mem::size_of::<G>();
+        let size2 = std::mem::size_of::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>();
+        let size3 = std::mem::size_of::<<G as CurveAffine>::Projective>();
+        let mem1 = size1 * n;
+        let mem2 = size2 * n;
+        let mem3 = size3 * 4 * self.core_count * bucket_len;
+        let mem4 = size3 * 4 * self.core_count;
+        println!("SingleMultiexpKernel.multiexp: \n size1:{},\n size2:{},\n size3:{},\n mem1:{},\n mem2:{},\n mem3:{},\n mem4:{}", size1,size2,size3,mem1,mem2,mem3,mem4);
+
+
+        println!("ZQ: GPU mem need: {}Mbyte", (mem1 + mem2 + mem3 + mem4)/(1024*1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
@@ -300,6 +304,7 @@ where
         let (cpu_exps, exps) = exps.split_at(cpu_n);
 
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
+        println!("MultiexpKernel.multiexp: \n exp_num:{},\n num_devices:{},\n chunk_size:{}",exp_num,num_devices, chunk_size);
 
         crate::multicore::THREAD_POOL.install(|| {
             use rayon::prelude::*;
@@ -320,18 +325,15 @@ where
                             .zip(self.kernels.par_iter_mut())
                             .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
                                 let mut acc = <G as CurveAffine>::Projective::zero();
-                                let mut jack_chunk = kern.n;
+                                let mut kern_num = kern.n;
                                 let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
-                                println!("GABEDEBUG: start size_result:{}, jack_chunk:{},", size_result,jack_chunk);
                                 if size_result > 144 {
-                                    jack_chunk = (jack_chunk as f64 / 15f64).ceil() as usize;
-                                    println!("GABEDEBUG: >144 size_result:{}, jack_chunk:{},", size_result,jack_chunk);
+                                    kern_num = (kern_num as f64 / 15f64).ceil() as usize;
                                 }else{
-                                    jack_chunk = (jack_chunk as f64 / 1.2f64).ceil() as usize;
-                                    println!("GABEDEBUG: <=144 size_result:{}, jack_chunk:{},", size_result,jack_chunk);
+                                    kern_num = (kern_num as f64 / 1.2f64).ceil() as usize;
                                 }
-                                println!("GABEDEBUG: end size_result:{}, jack_chunk:{},", size_result,jack_chunk);
-                                for (bases, exps) in bases.chunks(jack_chunk).zip(exps.chunks(jack_chunk)) {
+                                println!("GABEDEBUG: end size_result:{}, kern_num:{},", size_result,kern_num);
+                                for (bases, exps) in bases.chunks(kern_num).zip(exps.chunks(kern_num)) {
                                     let result = kern.multiexp(bases, exps, bases.len())?;
                                     acc.add_assign(&result);
                                 }
