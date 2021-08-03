@@ -12,6 +12,7 @@ use rayon::prelude::*;
 use rust_gpu_tools::*;
 use std::any::TypeId;
 use std::sync::Arc;
+use std::time::Instant;
 
 const MAX_WINDOW_SIZE: usize = 10;
 const LOCAL_WORK_SIZE: usize = 256;
@@ -138,6 +139,15 @@ where
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         let num_groups = calc_num_groups(self.core_count, num_windows);
         let bucket_len = 1 << window_size;
+        // println!("SingleMultiexpKernel.multiexp: \n exp_bits:{},\n window_size:{},\n num_windows:{},\n num_groups:{},\n bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
+
+        // let size1 = std::mem::size_of::<G>();
+        // let size2 = std::mem::size_of::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>();
+        // let size3 = std::mem::size_of::<<G as CurveAffine>::Projective>();
+        // let mem1 = size1 * n;
+        // let mem2 = size2 * n;
+        // let mem3 = size3 * 4 * self.core_count * bucket_len;
+        // let mem4 = size3 * 4 * self.core_count;
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
@@ -275,6 +285,14 @@ where
         <G as groupy::CurveAffine>::Engine: crate::bls::Engine,
     {
         let num_devices = self.kernels.len();
+        for (i, k) in self.kernels.iter().enumerate() {
+            println!(
+                "Multiexp: Device {}: {} (Chunk-size: {})",
+                i,
+                k.program.device().name(),
+                k.n
+            );
+        }
         // Bases are skipped by `self.1` elements, when converted from (Arc<Vec<G>>, usize) to Source
         // https://github.com/zkcrypto/bellman/blob/10c5010fd9c2ca69442dc9775ea271e286e776d8/src/multiexp.rs#L38
         let bases = &bases[skip..(skip + n)];
@@ -286,24 +304,31 @@ where
         let (cpu_exps, exps) = exps.split_at(cpu_n);
 
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
+        println!("MultiexpKernel.multiexp: \n exp_num:{},\n num_devices:{},\n chunk_size:{}",n,num_devices, chunk_size);
 
         let mut acc = <G as CurveAffine>::Projective::zero();
 
         let results = crate::multicore::THREAD_POOL.install(|| {
             if n > 0 {
+                println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{}",bases.len(),exps.len());
                 bases
                 .par_chunks(chunk_size)
                 .zip(exps.par_chunks(chunk_size))
                 .zip(self.kernels.par_iter_mut())
                 .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
+                                println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                     let mut acc = <G as CurveAffine>::Projective::zero();
                     for (bases, exps) in bases.chunks(kern.n).zip(exps.chunks(kern.n)) {
+                        println!("MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),kern.n);
+                        let now = Instant::now();
                         match kern.multiexp(bases, exps, bases.len()) {
-                            Ok(result) => acc.add_assign(&result),
+                            Ok(result) => {
+                                println!("MultiexpKernel.multiexp =======================> Single multiexp cost:{:?}s",now.elapsed());
+                                acc.add_assign(&result)
+                                },
                             Err(e) => return Err(e),
                         }
                     }
-
                     Ok(acc)
                 })
                 .collect::<Vec<_>>()
