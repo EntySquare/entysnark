@@ -111,6 +111,7 @@ where
         let max_n = calc_chunk_size::<E>(mem, core_count);
         let best_n = calc_best_chunk_size(MAX_WINDOW_SIZE, core_count, exp_bits);
         let n = std::cmp::min(max_n, best_n);
+        println!("SingleMultiexpKernel.create: \n src:{} \n exp_bits:{},\n core_count:{},\n mem:{},\n max_n:{},\n best_n:{}",src, exp_bits,core_count,mem,max_n,best_n);
 
         Ok(SingleMultiexpKernel {
             program: opencl::Program::from_opencl(d, &src)?,
@@ -139,15 +140,16 @@ where
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         let num_groups = calc_num_groups(self.core_count, num_windows);
         let bucket_len = 1 << window_size;
-        // println!("SingleMultiexpKernel.multiexp: \n exp_bits:{},\n window_size:{},\n num_windows:{},\n num_groups:{},\n bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
+        println!("SingleMultiexpKernel.multiexp: \n exp_bits:{},\n window_size:{},\n num_windows:{},\n num_groups:{},\n bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
 
-        // let size1 = std::mem::size_of::<G>();
-        // let size2 = std::mem::size_of::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>();
-        // let size3 = std::mem::size_of::<<G as CurveAffine>::Projective>();
-        // let mem1 = size1 * n;
-        // let mem2 = size2 * n;
-        // let mem3 = size3 * 4 * self.core_count * bucket_len;
-        // let mem4 = size3 * 4 * self.core_count;
+        let size1 = std::mem::size_of::<G>();
+        let size2 = std::mem::size_of::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>();
+        let size3 = std::mem::size_of::<<G as CurveAffine>::Projective>();
+        let mem1 = size1 * n;
+        let mem2 = size2 * n;
+        let mem3 = size3 * 2 * self.core_count * bucket_len;
+        let mem4 = size3 * 2 * self.core_count;
+        println!("SingleMultiexpKernel.multiexp: \n size1:{},\n size2:{},\n size3:{},\n mem1:{},\n mem2:{},\n mem3:{},\n mem4:{}", size1,size2,size3,mem1,mem2,mem3,mem4);
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
