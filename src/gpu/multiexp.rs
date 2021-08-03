@@ -291,7 +291,7 @@ where
         <G as groupy::CurveAffine>::Engine: crate::bls::Engine,
     {
         let num_devices = self.kernels.len();
-        for (i, k) in kernels.iter().enumerate() {
+        for (i, k) in self.kernels.iter().enumerate() {
             println!(
                 "Multiexp: Device {}: {} (Chunk-size: {})",
                 i,
