@@ -12,7 +12,6 @@ use rayon::prelude::*;
 use rust_gpu_tools::*;
 use std::any::TypeId;
 use std::sync::Arc;
-use chrono::Local;
 
 const MAX_WINDOW_SIZE: usize = 10;
 const LOCAL_WORK_SIZE: usize = 256;
@@ -175,17 +174,16 @@ where
             None,
         );
 
-        call_kernel!(
-            kernel,
-            &base_buffer,
-            &bucket_buffer,
-            &result_buffer,
-            &exp_buffer,
-            n as u32,
-            num_groups as u32,
-            num_windows as u32,
-            window_size as u32
-        )?;
+        kernel
+            .arg(&base_buffer)
+            .arg(&bucket_buffer)
+            .arg(&result_buffer)
+            .arg(&exp_buffer)
+            .arg(n as u32)
+            .arg(num_groups as u32)
+            .arg(num_windows as u32)
+            .arg(window_size as u32)
+            .run()?;
 
         let mut results = vec![<G as CurveAffine>::Projective::zero(); num_groups * num_windows];
         result_buffer.read_into(0, &mut results)?;
@@ -225,11 +223,11 @@ where
     pub fn create(priority: bool) -> GPUResult<MultiexpKernel<E>> {
         let lock = locks::GPULock::lock();
 
-        let devices = opencl::Device::all()?;
+        let devices = opencl::Device::all();
 
         let kernels: Vec<_> = devices
             .into_iter()
-            .map(|d| (d.clone(), SingleMultiexpKernel::<E>::create(d, priority)))
+            .map(|d| (d, SingleMultiexpKernel::<E>::create(d.clone(), priority)))
             .filter_map(|(device, res)| {
                 if let Err(ref e) = res {
                     error!(
@@ -289,49 +287,48 @@ where
 
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
 
-        crate::multicore::THREAD_POOL.install(|| {
-            use rayon::prelude::*;
-	    let start_enty = Local::now().timestamp();
-            let mut acc = <G as CurveAffine>::Projective::zero();
-            let start_install = Local::now().timestamp();
-            let results = if n > 0 {
-                bases
-                    .par_chunks(chunk_size)
-                    .zip(exps.par_chunks(chunk_size))
-                    .zip(self.kernels.par_iter_mut())
-                    .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
-                        let mut acc = <G as CurveAffine>::Projective::zero();
-                        for (bases, exps) in bases.chunks(kern.n).zip(exps.chunks(kern.n)) {
-                            let result = kern.multiexp(bases, exps, bases.len())?;
-                            acc.add_assign(&result);
-                        }
+        let mut acc = <G as CurveAffine>::Projective::zero();
 
-                        Ok(acc)
-                    })
-                    .collect::<Vec<_>>()
+        let results = crate::multicore::THREAD_POOL.install(|| {
+            if n > 0 {
+                bases
+                .par_chunks(chunk_size)
+                .zip(exps.par_chunks(chunk_size))
+                .zip(self.kernels.par_iter_mut())
+                .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
+                    let mut acc = <G as CurveAffine>::Projective::zero();
+                    for (bases, exps) in bases.chunks(kern.n).zip(exps.chunks(kern.n)) {
+                        match kern.multiexp(bases, exps, bases.len()) {
+                            Ok(result) => acc.add_assign(&result),
+                            Err(e) => return Err(e),
+                        }
+                    }
+
+                    Ok(acc)
+                })
+                .collect::<Vec<_>>()
             } else {
                 Vec::new()
-            };
-            let end = Local::now().timestamp();
-            println!("[DEBUG] multiexp<G>-1 install DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_install, end, end - start_install);
-	    let start_enty = Local::now().timestamp();
-            let cpu_acc = cpu_multiexp(
-                &pool,
-                (Arc::new(cpu_bases.to_vec()), 0),
-                FullDensity,
-                Arc::new(cpu_exps.to_vec()),
-                &mut None,
-            );
-
-            for r in results {
-                acc.add_assign(&r?);
             }
+        });
 
-            acc.add_assign(&cpu_acc.wait().unwrap());
-            let end = Local::now().timestamp();
-            println!("[DEBUG] multiexp<G>-2 exps clone DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
+        let cpu_acc = cpu_multiexp(
+            &pool,
+            (Arc::new(cpu_bases.to_vec()), 0),
+            FullDensity,
+            Arc::new(cpu_exps.to_vec()),
+            &mut None,
+        );
 
-            Ok(acc)
-        })
+        for r in results {
+            match r {
+                Ok(r) => acc.add_assign(&r),
+                Err(e) => return Err(e),
+            }
+        }
+
+        acc.add_assign(&cpu_acc.wait().unwrap());
+
+        Ok(acc)
     }
 }

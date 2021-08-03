@@ -1,12 +1,13 @@
+use std::io;
+use std::iter;
+use std::sync::Arc;
+
 use bit_vec::{self, BitVec};
 use ff::{Field, PrimeField, PrimeFieldRepr, ScalarEngine};
 use groupy::{CurveAffine, CurveProjective};
 use log::{info, warn};
 use rayon::prelude::*;
-use std::io;
-use std::iter;
-use std::sync::Arc;
-use chrono::Local;
+
 use super::multicore::{Waiter, Worker};
 use super::SynthesisError;
 use crate::gpu;
@@ -204,7 +205,6 @@ where
     G: CurveAffine,
     S: SourceBuilder<G>,
 {
-    println!("[DEBUG] multiexp_inner run");
     // Perform this region of the multiexp
     let this = move |bases: S,
                      density_map: D,
@@ -283,32 +283,6 @@ where
         })
 }
 
-// density map filter for exponents
-pub fn density_filter<Q, D, G, S>(
-    bases: S,
-    density_map: D,
-    exponents: Arc<Vec<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>>
-) ->  (Arc<Vec<G>>, Arc<Vec<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>>, usize, usize)
-where
-    for<'a> &'a Q: QueryDensity,
-    D: Send + Sync + 'static + Clone + AsRef<Q>,
-    G: CurveAffine,
-    G::Engine: crate::bls::Engine,
-    S: SourceBuilder<G>,
-{
-    println!("[DEBUG] density_filter run");
-    let mut exps = vec![exponents[0]; exponents.len()];
-    let mut n = 0;
-    for (&e, d) in exponents.iter().zip(density_map.as_ref().iter()) {
-        if d {
-            exps[n] = e;
-            n += 1;
-        }
-    }
-    let (bss, skip) = bases.get();
-    (bss,Arc::new(exps),skip,n)
-}
-
 /// Perform multi-exponentiation. The caller is responsible for ensuring the
 /// query size is the same as the number of exponents.
 pub fn multiexp<Q, D, G, S>(
@@ -325,24 +299,18 @@ where
     G::Engine: crate::bls::Engine,
     S: SourceBuilder<G>,
 {
-    let start_all = Local::now().timestamp();
     if let Some(ref mut kern) = kern {
         if let Ok(p) = kern.with(|k: &mut gpu::MultiexpKernel<G::Engine>| {
             let mut exps = vec![exponents[0]; exponents.len()];
             let mut n = 0;
-            let start_enty = Local::now().timestamp();
             for (&e, d) in exponents.iter().zip(density_map.as_ref().iter()) {
                 if d {
                     exps[n] = e;
                     n += 1;
                 }
             }
-            let end = Local::now().timestamp();
-            println!("[DEBUG] multiexp-1 kern with ok DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
-            let start_enty = Local::now().timestamp();
+
             let (bss, skip) = bases.clone().get();
-            let end = Local::now().timestamp();
-            println!("[DEBUG] multiexp-2 bases clone DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
             k.multiexp(pool, bss, Arc::new(exps.clone()), skip, n)
         }) {
             return Waiter::done(Ok(p));
@@ -360,86 +328,18 @@ where
         // inconsistent with the number of exponents.
         assert!(query_size == exponents.len());
     }
-    let start_enty = Local::now().timestamp();
-    let result = pool.compute(move || multiexp_inner(bases, density_map, exponents, c));
-    let end = Local::now().timestamp();
-    println!("[DEBUG] multiexp-3 pool compute DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
 
-    let start_enty = Local::now().timestamp();
+    let result = pool.compute(move || multiexp_inner(bases, density_map, exponents, c));
     #[cfg(feature = "gpu")]
     {
         // Do not give the control back to the caller till the
         // multiexp is done. We may want to reacquire the GPU again
         // between the multiexps.
         let result = result.wait();
-        let end = Local::now().timestamp();
-        println!("[DEBUG] multiexp-4 gpu result DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_enty, end, end - start_enty);
-        let end = Local::now().timestamp();
-        println!("[DEBUG] multiexp-all DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_all, end, end - start_all);
         Waiter::done(result)
     }
     #[cfg(not(feature = "gpu"))]
     result
-}
-
-// fulldensity
-pub fn multiexp_fulldensity<Q, D, G, S>(
-    pool: &Worker,
-    bases: S,
-    _density_map: D,
-    exponents: Arc<Vec<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>>,
-    kern: &mut Option<gpu::LockedMultiexpKernel<G::Engine>>,
-) -> Waiter<Result<<G as CurveAffine>::Projective, SynthesisError>>
-where
-    for<'a> &'a Q: QueryDensity,
-    D: Send + Sync + 'static + Clone + AsRef<Q>,
-    G: CurveAffine,
-    G::Engine: crate::bls::Engine,
-    S: SourceBuilder<G>,
-{
-    println!("[DEBUG] multiexp_fulldensity-all run");
-    let start_all = Local::now().timestamp();
-    if let Some(ref mut kern) = kern {
-        if let Ok(p) = kern.with(|k: &mut gpu::MultiexpKernel<G::Engine>| {
-            let (bss, skip) = bases.clone().get();
-            k.multiexp(pool, bss, exponents.clone(), skip, exponents.len())
-        }) {
-            let result = Waiter::done(Ok(p));
-            return result
-        }
-    }
-    let end = Local::now().timestamp();
-    println!("[DEBUG] multiexp_fulldensity-all bases clone DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_all, end, end - start_all);
-    Waiter::done(Err(SynthesisError::GPUError(gpu::GPUError::GPUDisabled)))
-}
-
-
-// skipdensity
-pub fn multiexp_skipdensity<G>(
-    pool: &Worker,
-    bss: Arc<Vec<G>>,
-    exps: Arc<Vec<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>>,
-    skip: usize,
-    n: usize,
-    kern: &mut Option<gpu::LockedMultiexpKernel<G::Engine>>,
-) -> Waiter<Result<<G as CurveAffine>::Projective, SynthesisError>>
-where
-    G: CurveAffine,
-    G::Engine: crate::bls::Engine,
-{
-    println!("[DEBUG] multiexp_skipdensity run");
-    let start_all = Local::now().timestamp();
-    if let Some(ref mut kern) = kern {
-        if let Ok(p) = kern.with(|k: &mut gpu::MultiexpKernel<G::Engine>| {
-            k.multiexp(pool, bss.clone(), exps.clone(), skip, n)
-        }) {
-            let result = Waiter::done(Ok(p));
-            return result
-        }
-    }
-    let end = Local::now().timestamp();
-    println!("[DEBUG] multiexp_skipdensity-all bases clone DONE  \n start :: {:?},\n end :{:?},\n duration:{:?}\n", start_all, end, end - start_all);
-    Waiter::done(Err(SynthesisError::GPUError(gpu::GPUError::GPUDisabled)))
 }
 
 #[cfg(any(feature = "pairing", feature = "blst"))]
@@ -518,7 +418,7 @@ pub fn gpu_multiexp_consistency() {
     let _ = env_logger::try_init();
     gpu::dump_device_list();
 
-    const MAX_LOG_D: usize = 20;
+    const MAX_LOG_D: usize = 16;
     const START_LOG_D: usize = 10;
     let mut kern = Some(gpu::LockedMultiexpKernel::<Bls12>::new(MAX_LOG_D, false));
     let pool = Worker::new();
@@ -532,7 +432,7 @@ pub fn gpu_multiexp_consistency() {
         bases = [bases.clone(), bases.clone()].concat();
     }
 
-    for log_d in START_LOG_D..(MAX_LOG_D + 1) {
+    for log_d in START_LOG_D..=MAX_LOG_D {
         let g = Arc::new(bases.clone());
 
         let samples = 1 << log_d;
