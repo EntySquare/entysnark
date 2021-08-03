@@ -21,7 +21,6 @@ use log::info;
 #[cfg(feature = "gpu")]
 extern crate scoped_threadpool;
 use scoped_threadpool::Pool;
-use log::trace;
 
 #[cfg(feature = "gpu")]
 use crate::gpu::PriorityLock;
