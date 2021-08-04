@@ -336,7 +336,9 @@ where
                                 println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                                 let mut acc = <G as CurveAffine>::Projective::zero();
                                 //let mut kern_num = kern.n;
-                                let kern_num = 33833300;
+                                // let kern_num = 33833300;
+                                let kern_num = 35828687;
+
                                 let mut set_window_size:usize = 11 ;
                                 let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
                                 if size_result > 144 {
