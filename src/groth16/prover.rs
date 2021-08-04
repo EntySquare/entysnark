@@ -269,18 +269,24 @@ where
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
-use heim::{memory, units::information};
-use futures::executor::block_on;
+// use heim::{memory, units::information};
+// use futures::executor::block_on;
 use lazy_static::*;
+use sysinfo::SystemExt;
 
 lazy_static! {
     static ref C2_PROOF_RC_NUM: Mutex<u32> = Mutex::new(0);
     static ref C2_PROOF_RC_MAX: Mutex<u32> = Mutex::new(
-        block_on(async {
-            let memory = memory::memory().await.unwrap();
+         {
+            let mut system = sysinfo::System::new();
+            system.refresh_all();
+            let total = system.total_memory() * 8 /(1024*1024);
+             println!("total memery = {} GiB",total);
+             (total / 230) as u32
+           /* let memory = memory::memory().await.unwrap();
             let total = memory.total().get::<information::gibibyte>();
-            (total / 230) as u32
-        })
+            (total / 230) as u32*/
+        }
     );
 }
 
