@@ -114,7 +114,7 @@ where
         let max_n = calc_chunk_size::<E>(mem, core_count);
         let best_n = calc_best_chunk_size(MAX_WINDOW_SIZE, core_count, exp_bits);
         let n = std::cmp::min(max_n, best_n);
-        println!("SingleMultiexpKernel.create: \n exp_bits:{},\n core_count:{},\n mem:{},\n max_n:{},\n best_n:{}",src, exp_bits,core_count,mem,max_n,best_n);
+        println!("SingleMultiexpKernel.create: \n exp_bits:{},\n core_count:{},\n mem:{},\n max_n:{},\n best_n:{}", exp_bits,core_count,mem,max_n,best_n);
 
         Ok(SingleMultiexpKernel {
             program: opencl::Program::from_opencl(d, &src)?,
@@ -336,19 +336,12 @@ where
                                 println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                                 let mut acc = <G as CurveAffine>::Projective::zero();
                                 //let mut kern_num = kern.n;
-                                let kern_num = 31989899;
+                                let kern_num = 33833300;
                                 let mut set_window_size:usize = 11 ;
                                 let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
-                                println!("GABEDEBUG: start size_result:{}, kern_num:{},", size_result,kern_num);
-                                // if size_result > 144 {
-                                //     set_window_size = (kern_num as f64 / 15f64).ceil() as usize;
-                                // }else{
-                                //     kern_num = (kern_num as f64 / 1.2f64).ceil() as usize;
-                                // }
                                 if size_result > 144 {
                                      set_window_size = 9;
                                 }
-                                println!("GABEDEBUG: end size_result:{}, kern_num:{},", size_result,kern_num);
                                 for (bases, exps) in bases.chunks(kern_num).zip(exps.chunks(kern_num)) {
                                     println!("MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),kern_num);
                                     let now = Instant::now();
@@ -356,7 +349,6 @@ where
                                     println!("MultiexpKernel.multiexp =======================> Single multiexp cost:{:?}s",now.elapsed());
                                     acc.add_assign(&result);
                                 }
-
                                 Ok(acc)
                             })
                             .collect::<Vec<_>>()
