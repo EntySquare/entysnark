@@ -16,6 +16,7 @@ use std::sync::Arc;
 use std::sync::mpsc;
 extern crate scoped_threadpool;
 use scoped_threadpool::Pool;
+use std::time::Instant;
 
 
 // const MAX_WINDOW_SIZE: usize = 11; // 10;
@@ -158,8 +159,11 @@ where
         let mem2 = size2 * n;
         let mem3 = size3 * 2 * self.core_count * bucket_len;
         let mem4 = size3 * 2 * self.core_count;
-        info!("GABEDEBUG: <G> size:{}, <PrimeField> size:{}, <Projective> size:{}", size1, size2, size3);
-        info!("GABEDEBUG: GPU mem need:{}byte, {}Mbyte", mem1 + mem2 + mem3 + mem4, (mem1 + mem2 + mem3 + mem4)/(1024*1024));
+        println!("SingleMultiexpKernel.multiexp: \n size1:{},\n size2:{},\n size3:{},\n mem1:{},\n mem2:{},\n mem3:{},\n mem4:{}", size1,size2,size3,mem1,mem2,mem3,mem4);
+        println!("ZQ: GPU mem need: {}Mbyte", (mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
+        // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
+        // be `num_groups` * `num_windows` threads in total.
+        // Each thread will use `num_groups` * `num_windows` * `bucket_len` buckets.
 
         let mut base_buffer = self.program.create_buffer::<G>(n)?;
         base_buffer.write_from(0, bases)?;
@@ -304,7 +308,7 @@ where
         let (cpu_exps, exps) = exps.split_at(cpu_n);
 
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
-        info!("In multiexp chunk_size is ---- :{}",  chunk_size);
+        println!("MultiexpKernel.multiexp: \n exp_num:{},\n num_devices:{},\n chunk_size:{}",n,num_devices, chunk_size);
 
         let mut acc = <G as CurveAffine>::Projective::zero();
 
@@ -318,20 +322,26 @@ where
             // GPU
             scoped.execute(move || {
                 let results = if n > 0 {
+                    println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{}",bases.len(),exps.len());
                     bases
                         .par_chunks(chunk_size)
                         .zip(exps.par_chunks(chunk_size))
                         .zip(self.kernels.par_iter_mut())
                         .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
+                            println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                             let mut acc = <G as CurveAffine>::Projective::zero();
                             let jack_chunk_3080 = 33554466;
                             let mut jack_windows_size = 11;
                             let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
+                            println!("GABEDEBUG: start size_result:{}", size_result);
                             if size_result > 144 {
                                 jack_windows_size = 8;
                             }
                             for (bases, exps) in bases.chunks(jack_chunk_3080).zip(exps.chunks(jack_chunk_3080)) {
+                                println!("MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),jack_chunk_3080);
+                                let now = Instant::now();
                                 let result = kern.multiexp(bases, exps, bases.len(), jack_windows_size)?;
+                                println!("MultiexpKernel.multiexp =======================> Single multiexp cost:{:?}s",now.elapsed());
                                 acc.add_assign(&result);
                             }
 
