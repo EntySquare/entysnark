@@ -348,7 +348,7 @@ where
                                     println!("MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),kern_num);
                                     let now = Instant::now();
                                     let result = kern.multiexp(bases, exps, bases.len(),set_window_size)?;
-                                    println!("MultiexpKernel.multiexp =======================> Single multiexp cost:{:?}s",now.elapsed());
+                                    println!("MultiexpKernel.multiexp =======================> Single multiexp cost:{:?}",now.elapsed());
                                     acc.add_assign(&result);
                                 }
                                 Ok(acc)
