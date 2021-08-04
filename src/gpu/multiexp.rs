@@ -130,6 +130,7 @@ where
         bases: &[G],
         exps: &[<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr],
         n: usize,
+        set_window_size: usize,
     ) -> GPUResult<<G as CurveAffine>::Projective>
     where
         G: CurveAffine,
@@ -140,7 +141,7 @@ where
 
         let exp_bits = exp_size::<E>() * 8;
         // let window_size = calc_window_size(n as usize, exp_bits, self.core_count);
-        let window_size = MAX_WINDOW_SIZE;
+        let window_size = set_window_size;
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         let num_groups = calc_num_groups(self.core_count, num_windows);
         let bucket_len = 1 << window_size;
@@ -154,7 +155,7 @@ where
         let mem3 = size3 * 4 * self.core_count * bucket_len;
         let mem4 = size3 * 4 * self.core_count;
         println!("SingleMultiexpKernel.multiexp: \n size1:{},\n size2:{},\n size3:{},\n mem1:{},\n mem2:{},\n mem3:{},\n mem4:{}", size1,size2,size3,mem1,mem2,mem3,mem4);
-        println!("ZQ: GPU mem need: {}Mbyte", (mem1 + mem2 + mem3 + mem4)/(1024*1024));
+        println!("ZQ: GPU mem need: {}Mbyte", (mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
@@ -334,19 +335,24 @@ where
                             .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
                                 println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                                 let mut acc = <G as CurveAffine>::Projective::zero();
-                                let mut kern_num = kern.n;
+                                //let mut kern_num = kern.n;
+                                let kern_num = 37321550;
+                                let mut set_window_size:usize = 11 ;
                                 let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
                                 println!("GABEDEBUG: start size_result:{}, kern_num:{},", size_result,kern_num);
+                                // if size_result > 144 {
+                                //     set_window_size = (kern_num as f64 / 15f64).ceil() as usize;
+                                // }else{
+                                //     kern_num = (kern_num as f64 / 1.2f64).ceil() as usize;
+                                // }
                                 if size_result > 144 {
-                                    kern_num = (kern_num as f64 / 15f64).ceil() as usize;
-                                }else{
-                                    kern_num = (kern_num as f64 / 1.2f64).ceil() as usize;
+                                     set_window_size = 9;
                                 }
                                 println!("GABEDEBUG: end size_result:{}, kern_num:{},", size_result,kern_num);
                                 for (bases, exps) in bases.chunks(kern_num).zip(exps.chunks(kern_num)) {
                                     println!("MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),kern_num);
                                     let now = Instant::now();
-                                    let result = kern.multiexp(bases, exps, bases.len())?;
+                                    let result = kern.multiexp(bases, exps, bases.len(),set_window_size)?;
                                     println!("MultiexpKernel.multiexp =======================> Single multiexp cost:{:?}s",now.elapsed());
                                     acc.add_assign(&result);
                                 }
