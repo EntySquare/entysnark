@@ -49,7 +49,7 @@ fs2 = { version = "0.4.3", optional = true }
 scoped_threadpool = "0.1.*"
 # heim = "0.0.11"
 # futures = "0.3"
-sysinfo = "0.19.2"
+sysinfo = "=0.19.2"
 
 [dev-dependencies]
 hex-literal = "0.3"
