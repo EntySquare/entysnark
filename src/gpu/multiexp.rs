@@ -336,7 +336,7 @@ where
                                 println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                                 let mut acc = <G as CurveAffine>::Projective::zero();
                                 //let mut kern_num = kern.n;
-                                let kern_num = 37321550;
+                                let kern_num = 31989899;
                                 let mut set_window_size:usize = 11 ;
                                 let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
                                 println!("GABEDEBUG: start size_result:{}, kern_num:{},", size_result,kern_num);
