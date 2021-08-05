@@ -346,12 +346,12 @@ where
                             println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                             let mut acc = <G as CurveAffine>::Projective::zero();
                             //let jack_chunk_3080 = 33554466;
-                            let single_chunk_size =40672080;
+                            let single_chunk_size =39016820;
                             let mut set_window_size = 11;
                             let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
                             // println!("GABEDEBUG: start size_result:{}", size_result);
                             if size_result > 144 {
-                                set_window_size = 6;
+                                set_window_size = 8;
                             }
                             for (bases, exps) in bases.chunks(single_chunk_size).zip(exps.chunks(single_chunk_size)) {
                                 println!("MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}", bases.len(), exps.len(), single_chunk_size);
