@@ -320,13 +320,18 @@ where
     C: Circuit<E> + Send,
 {
     c2_proof_lock();
-    println!("prover.create_proof_batch_priority: Bellperson {} is being used!", BELLMAN_VERSION);
+    //println!("prover.create_proof_batch_priority: Bellperson {} is being used!", BELLMAN_VERSION);
 
     // Preparing things for the proofs is done a lot in parallel with the help of Rayon. Make
     // sure that those things run on the correct thread pool.
     // let (start, mut provers, input_assignments, aux_assignments) =
+    let now = Instant::now();
+    println!("prover.create_proof_batch_priority: create provers start...");
+
     let (start, mut provers) =
         THREAD_POOL.install(|| create_proof_batch_priority_inner(circuits))?;
+
+    println!("prover.create_proof_batch_priority: create provers time: {:?}", now.elapsed());
 
     // The rest of the proving also has parallelism, but not on the outer loops, but within e.g. the
     // multiexp calculations. This is what the `Worker` is used for. It is important that calling
@@ -433,6 +438,9 @@ where
 
     let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
 
+    let now = Instant::now();
+    println!("prover.create_proof_batch_priority: a_s start...");
+
     let a_s = provers
         .iter_mut()
         .map(|prover| {
@@ -466,9 +474,13 @@ where
             Ok(Arc::new(a.into_par_iter().map(|s| s.0.into_repr()).collect::<Vec<_>>()))
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+    println!("prover.create_proof_batch_priority: a_s time: {:?}", now.elapsed());
 
     drop(fft_kern);
     let mut multiexp_kern = Some(LockedMultiexpKernel::<E>::new(log_d, priority));
+
+    let now = Instant::now();
+    println!("prover.create_proof_batch_priority: h_s start...");
 
     let h_s = a_s
         .into_iter()
@@ -485,7 +497,10 @@ where
             Ok(h)
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+    println!("prover.create_proof_batch_priority: h_s time: {:?}", now.elapsed());
 
+    let now = Instant::now();
+    println!("prover.create_proof_batch_priority: l_s start...");
     let l_s = assignments // aux_assignments
         .iter()
         // .map(|aux_assignment| {
@@ -501,6 +516,10 @@ where
             Ok(l)
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+    println!("prover.create_proof_batch_priority: l_s time: {:?}", now.elapsed());
+
+    let now = Instant::now();
+    println!("prover.create_proof_batch_priority: input start...");
 
     let inputs = provers
         .into_iter()
@@ -635,6 +654,9 @@ where
             ))
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+
+    println!("prover.create_proof_batch_priority: input time: {:?}", now.elapsed());
+
     drop(multiexp_kern);
 
     let proofs = h_s
