@@ -294,7 +294,7 @@ where
     C: Circuit<E> + Send,
 {
     // build provers
-    info!("ZQ: build provers start");
+    println!("prover.create_proof_batch_priority_inner: build provers start");
     let mut provers = circuits
         .into_par_iter()
         .map(|circuit| -> Result<_, SynthesisError> {
@@ -311,7 +311,7 @@ where
 
 
     // Start prover timer
-    info!("ZQ: starting proof timer");
+    println!("prover.create_proof_batch_priority_inner: starting proof timer");
     let start = Instant::now();
     let worker = Worker::new();
     let input_len = provers[0].input_assignment.len();
@@ -334,7 +334,7 @@ where
 
 
     // get params
-    info!("ZQ: get params start");
+    println!("prover.create_proof_batch_priority_inner: get params start");
     let now = Instant::now();
     let (tx_h, rx_h) = mpsc::channel();
     let (tx_l, rx_l) = mpsc::channel();
@@ -398,14 +398,14 @@ where
         });
     });
     // waiting params
-    info!("ZQ: waiting params...");
+    println!("prover.create_proof_batch_priority_inner: waiting params...");
     let h_params = rx_h.recv().unwrap();
     let l_params = rx_l.recv().unwrap();
     let (a_inputs_source, a_aux_source) = rx_a.recv().unwrap();
     let (b_g1_inputs_source, b_g1_aux_source) = rx_bg1.recv().unwrap();
     let (b_g2_inputs_source, b_g2_aux_source) = rx_bg2.recv().unwrap();
     let assignments = rx_assignments.recv().unwrap();
-    info!("ZQ: get params end: {:?}", now.elapsed());
+    println!("prover.create_proof_batch_priority_inner: get params end: {:?}", now.elapsed());
 
 
     #[cfg(feature = "gpu")]
@@ -416,7 +416,7 @@ where
         None
     };
 
-    info!("ZQ: a_s start");
+    println!("prover.create_proof_batch_priority_inner: a_s start");
     let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
 
     let a_s = provers
@@ -460,7 +460,7 @@ where
     drop(fft_kern);
     let mut multiexp_kern = Some(LockedMultiexpKernel::<E>::new(log_d, priority));
 
-    info!("ZQ: h_s start");
+    println!("prover.create_proof_batch_priority_inner: h_s start");
     let h_s = a_s
         .into_iter()
         .map(|a| {
@@ -475,7 +475,7 @@ where
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
 
-    info!("ZQ: l_s start");
+    println!("prover.create_proof_batch_priority_inner: l_s start");
     let l_s = assignments
         .iter()
         .map(|(_,aux_assignment)| {
@@ -490,7 +490,7 @@ where
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
 
-    info!("ZQ: inputs start");
+    println!("prover.create_proof_batch_priority_inner: inputs start");
     let inputs = provers
         .into_iter()
         .zip(assignments.into_iter())
@@ -590,7 +590,7 @@ where
         .collect::<Result<Vec<_>, SynthesisError>>()?;
     drop(multiexp_kern);
 
-    info!("ZQ: proofs start");
+    println!("prover.create_proof_batch_priority_inner: proofs start");
     let proofs = h_s
         .into_iter()
         .zip(l_s.into_iter())
@@ -654,7 +654,7 @@ where
     }
 
     let proof_time = start.elapsed();
-    info!("prover time: {:?}", proof_time);
+    println!("prover.create_proof_batch_priority_inner: prover time: {:?}", proof_time);
 
     Ok(proofs)
 }
