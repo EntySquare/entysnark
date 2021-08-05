@@ -280,7 +280,7 @@ lazy_static! {
          {
             let mut system = sysinfo::System::new();
             system.refresh_all();
-            let total = system.total_memory() * 8 /(1024*1024);
+            let total = system.total_memory()/(1024*1024);
              println!("total memery = {} GiB, proof lock max num: {}",total,(total / 230) as u64 );
              (total / 230) as u64
            /* let memory = memory::memory().await.unwrap();
