@@ -320,7 +320,7 @@ where
     C: Circuit<E> + Send,
 {
     c2_proof_lock();
-    info!("Bellperson {} is being used!", BELLMAN_VERSION);
+    println!("prover.create_proof_batch_priority: Bellperson {} is being used!", BELLMAN_VERSION);
 
     // Preparing things for the proofs is done a lot in parallel with the help of Rayon. Make
     // sure that those things run on the correct thread pool.
@@ -351,7 +351,7 @@ where
     }
 
     // get params
-    info!("ZQ: get params start");
+    println!("prover.create_proof_batch_priority: get params start");
     let now = Instant::now();
     let (tx_h, rx_h) = mpsc::channel();
     let (tx_l, rx_l) = mpsc::channel();
@@ -415,14 +415,14 @@ where
         });
     });
     // waiting params
-    info!("ZQ: waiting params...");
+    println!("prover.create_proof_batch_priority: waiting params...");
     let h_params = rx_h.recv().unwrap();
     let l_params = rx_l.recv().unwrap();
     let (a_inputs_source, a_aux_source) = rx_a.recv().unwrap();
     let (b_g1_inputs_source, b_g1_aux_source) = rx_bg1.recv().unwrap();
     let (b_g2_inputs_source, b_g2_aux_source) = rx_bg2.recv().unwrap();
     let assignments = rx_assignments.recv().unwrap();
-    info!("ZQ: get params end: {:?}", now.elapsed());
+    println!("prover.create_proof_batch_priority: get params end: {:?}", now.elapsed());
     #[cfg(feature = "gpu")]
     let prio_lock = if priority {
         trace!("acquiring priority lock");
@@ -700,7 +700,7 @@ where
     }
 
      let proof_time = start.elapsed();
-     info!("prover time: {:?}", proof_time);
+    println!("prover.create_proof_batch_priority: prover time: {:?}", proof_time);
 
     c2_proof_unlock();
     Ok(proofs)
