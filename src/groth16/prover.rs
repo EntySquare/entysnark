@@ -21,7 +21,6 @@ use log::info;
 #[cfg(feature = "gpu")]
 extern crate scoped_threadpool;
 use scoped_threadpool::Pool;
-use log::trace;
 
 #[cfg(feature = "gpu")]
 use crate::gpu::PriorityLock;
@@ -420,7 +419,10 @@ where
     let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
 
     let a_s = provers
+        // 遍历
         .iter_mut()
+        // 处理内存的基本功能。
+        // 这个模块包含查询类型的大小和对齐、初始化和操作内存的函数。
         .map(|prover| {
             let mut a =
                 EvaluationDomain::from_coeffs(std::mem::replace(&mut prover.a, Vec::new()))?;
@@ -429,15 +431,19 @@ where
             let mut c =
                 EvaluationDomain::from_coeffs(std::mem::replace(&mut prover.c, Vec::new()))?;
 
+            // 分配worker和cpu关系
             a.ifft(&worker, &mut fft_kern)?;
+            // 先进行线程池作用域分配计算
             a.coset_fft(&worker, &mut fft_kern)?;
             b.ifft(&worker, &mut fft_kern)?;
             b.coset_fft(&worker, &mut fft_kern)?;
             c.ifft(&worker, &mut fft_kern)?;
             c.coset_fft(&worker, &mut fft_kern)?;
 
+            // 在定义域内执行两个多项式的乘法
             a.mul_assign(&worker, &b);
             drop(b);
+            // 在定义域内执行一个多项式的减法
             a.sub_assign(&worker, &c);
             drop(c);
             a.divide_by_z_on_coset(&worker);
