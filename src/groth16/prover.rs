@@ -18,6 +18,7 @@ use crate::{
     Circuit, ConstraintSystem, Index, LinearCombination, SynthesisError, Variable, BELLMAN_VERSION,
 };
 use log::info;
+use log::trace;
 #[cfg(feature = "gpu")]
 extern crate scoped_threadpool;
 use scoped_threadpool::Pool;
@@ -648,7 +649,7 @@ where
 
     #[cfg(feature = "gpu")]
     {
-        trace!("dropping priority lock");
+        carogtrace!("dropping priority lock");
         drop(prio_lock);
     }
 
