@@ -649,7 +649,7 @@ where
 
     #[cfg(feature = "gpu")]
     {
-        carogtrace!("dropping priority lock");
+        trace!("dropping priority lock");
         drop(prio_lock);
     }
 
