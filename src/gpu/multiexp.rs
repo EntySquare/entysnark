@@ -261,12 +261,13 @@ where
                     );
                 }
                 // 只用一个GPU
-                if index == 0 {
+                /*if index == 0 {
                     index += 1;
                     res.ok()
                 }else{
                     None
-                }
+                }*/
+                res.ok()
             })
             .collect();
 
