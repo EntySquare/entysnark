@@ -306,15 +306,6 @@ where
         <G as groupy::CurveAffine>::Engine: crate::bls::Engine,
     {
         println!("MultiexpKernel.multiexp: ================================ start ================================");
-        for (_, k) in self.kernels.iter().enumerate() {
-            println!(
-                "Multiexp: Device {}: {} (Chunk-size: {})",
-                k.program.device().bus_id().unwrap(), // i, // Modified by long 20210312
-                k.program.device().name(),
-                k.n
-            );
-        }
-
         let num_devices = self.kernels.len();
         // Bases are skipped by `self.1` elements, when converted from (Arc<Vec<G>>, usize) to Source
         // https://github.com/zkcrypto/bellman/blob/10c5010fd9c2ca69442dc9775ea271e286e776d8/src/multiexp.rs#L38
@@ -347,29 +338,36 @@ where
                         .zip(exps.par_chunks(chunk_size))
                         .zip(self.kernels.par_iter_mut())
                         .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
+                            let bus_id = kern.program.device().bus_id().unwrap();
+                            println!(
+                                "Multiexp: Device {}: {} (Chunk-size: {})",
+                                bus_id, // i, // Modified by long 20210312
+                                kern.program.device().name(),
+                                kern.n
+                            );
                            // println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                             let mut acc = <G as CurveAffine>::Projective::zero();
                             //let single_chunk_size = 33554466;
                             //let single_chunk_size =39016820;
-                            let mut single_chunk_size = 44739288; //理论最佳134217727/4 = 33554431.75   134217727/3=44739242.333333336
+                            let mut single_chunk_size = 33554466; //理论最佳 2台gpu 134217727/4 = 33554431.75  33554466  1台gpu 134217727/3=44739242.333333336 44739288
                             let mut set_window_size = 11;
                             let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
                             // println!("GABEDEBUG: start size_result:{}", size_result);
                             if size_result > 144 {
-                                single_chunk_size = 37282740;
+                                // single_chunk_size = 37282740;
                                 set_window_size = 8;
                             }
-                            println!("MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}", bases.len(), exps.len(), single_chunk_size);
+                            println!("[{}] MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}", bus_id,bases.len(), exps.len(), single_chunk_size);
                             let mut times = 1;
                             for (bases, exps) in bases.chunks(single_chunk_size).zip(exps.chunks(single_chunk_size)) {
                                 let now = Instant::now();
-                                println!("MultiexpKernel.multiexp: ===========> Single multiexp start [times:{}]<=========== ",times);
+                                println!("[{}] MultiexpKernel.multiexp: ===========> Single multiexp start [times:{}]<=========== ",bus_id,times);
                                 times += 1;
                                 let result = kern.multiexp(bases, exps, bases.len(), set_window_size)?;
-                                println!("MultiexpKernel.multiexp: ===========> Single multiexp cost:{:?} <=========== ",now.elapsed());
+                                println!("[{}] MultiexpKernel.multiexp: ===========> Single multiexp cost:{:?} <=========== ",bus_id,now.elapsed());
                                 acc.add_assign(&result);
                             }
-                            println!("MultiexpKernel.multiexp: ================================ end ================================");
+                            println!("[{}] MultiexpKernel.multiexp: ================================ end ================================",bus_id);
                             Ok(acc)
                         })
                         .collect::<Vec<_>>()
