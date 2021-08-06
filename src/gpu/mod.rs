@@ -32,6 +32,8 @@ mod multiexp;
 #[cfg(feature = "gpu")]
 pub use self::multiexp::*;
 
+#[cfg(feature = "gpu")]
+mod enty_test;
 #[cfg(not(feature = "gpu"))]
 mod nogpu;
 
