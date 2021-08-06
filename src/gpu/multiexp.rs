@@ -158,7 +158,8 @@ where
         let mem2 = size2 * n;
         let mem3 = size3 * 2 * self.core_count * bucket_len;
         let mem4 = size3 * 2 * self.core_count;
-        println!("SingleMultiexpKernel.multiexp: \n size1:{},\n size2:{},\n size3:{},\n mem1:{},\n mem2:{},\n mem3:{},\n mem4:{},GPU mem need: {}Mbyte", size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
+        println!("SingleMultiexpKernel.multiexp: \n CurveAffine size1:{},\n PrimeField size2:{},\n Projective size3:{},\n mem1:{},\n mem2:{},\n mem3:{},\n mem4:{},GPU mem need: {}Mbyte", size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
+
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
         // Each thread will use `num_groups` * `num_windows` * `bucket_len` buckets.
@@ -181,6 +182,8 @@ where
         let mut global_work_size = num_windows * num_groups;
         global_work_size +=
             (LOCAL_WORK_SIZE - (global_work_size % LOCAL_WORK_SIZE)) % LOCAL_WORK_SIZE;
+
+        println!("SingleMultiexpKernel.multiexp: \n global_work_size:{},\n num_windows:{},\n num_groups:{},\n LOCAL_WORK_SIZE:{}", global_work_size,num_windows,num_groups,LOCAL_WORK_SIZE);
 
         let kernel = self.program.create_kernel(
             if TypeId::of::<G>() == TypeId::of::<E::G1Affine>() {
@@ -337,13 +340,13 @@ where
             // GPU
             scoped.execute(move || {
                 let results = if n > 0 {
-                    println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
+                   // println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                     bases
                         .par_chunks(chunk_size)
                         .zip(exps.par_chunks(chunk_size))
                         .zip(self.kernels.par_iter_mut())
                         .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
-                            println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
+                           // println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                             let mut acc = <G as CurveAffine>::Projective::zero();
                             //let jack_chunk_3080 = 33554466;
                             let single_chunk_size =39016820;
@@ -353,11 +356,14 @@ where
                             if size_result > 144 {
                                 set_window_size = 8;
                             }
+                            println!("MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}", bases.len(), exps.len(), single_chunk_size);
+                            let mut times = 1;
                             for (bases, exps) in bases.chunks(single_chunk_size).zip(exps.chunks(single_chunk_size)) {
-                                println!("MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}", bases.len(), exps.len(), single_chunk_size);
                                 let now = Instant::now();
+                                println!("MultiexpKernel.multiexp: ===========> Single multiexp start [times:{}]<=========== ",times);
+                                times += 1;
                                 let result = kern.multiexp(bases, exps, bases.len(), set_window_size)?;
-                                println!("MultiexpKernel.multiexp =======> Single multiexp cost:{:?} <=======",now.elapsed());
+                                println!("MultiexpKernel.multiexp: ===========> Single multiexp cost:{:?} <=========== ",now.elapsed());
                                 acc.add_assign(&result);
                             }
                             println!("MultiexpKernel.multiexp: ================================ end ================================");

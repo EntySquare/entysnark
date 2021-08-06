@@ -47,6 +47,7 @@ impl GPULock {
                 }
             }
             glock.unlock().unwrap();
+            println!("==============>GPULock.lock : thread sleep 3 s<====================");
             thread::sleep(Duration::from_secs(3));
         }
     }
@@ -73,6 +74,7 @@ impl GPULock {
                 return GPULock(glock, 0);
             }
             glock.unlock().unwrap();
+            println!("==============>GPULock.lock : thread sleep 3 s<====================");
             thread::sleep(Duration::from_secs(3));
         }
     }
