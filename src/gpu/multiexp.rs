@@ -368,9 +368,9 @@ where
                             for (bases, exps) in bases.chunks(single_chunk_size).zip(exps.chunks(single_chunk_size)) {
                                 let now = Instant::now();
                                 println!("[{} - {}] MultiexpKernel.multiexp: ===========> Single multiexp start <=========== ",bus_id,times);
-                                times += 1;
                                 let result = kern.multiexp(bases, exps, bases.len(), set_window_size,bus_id,times)?;
                                 println!("[{} - {}] MultiexpKernel.multiexp: ===========> Single multiexp cost:{:?} <=========== ",bus_id,times,now.elapsed());
+                                times += 1;
                                 acc.add_assign(&result);
                             }
                             Ok(acc)
