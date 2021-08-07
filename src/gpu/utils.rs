@@ -47,6 +47,7 @@ lazy_static::lazy_static! {
                 let name = splitted[0].trim().to_string();
                 let cores : usize = splitted[1].trim().parse().expect("Invalid BELLMAN_CUSTOM_GPU!");
                 info!("Adding \"{}\" to GPU list with {} CUDA cores.", name, cores);
+                println!("GUO======GPU:{} ==== with {}", name, cores)
                 core_counts.insert(name, cores);
             }
             Ok(())

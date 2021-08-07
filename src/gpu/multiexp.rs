@@ -255,9 +255,9 @@ where
             .filter_map(|(device, res)| {
                 if let Err(ref e) = res {
                     error!(
-                        "Cannot initialize kernel for device '{}'! Error: {}",
+                        "Cannot initialize kernel for device '{}'! ",
                         device.name(),
-                        e
+                        // e
                     );
                 }
                 // 只用一个GPU

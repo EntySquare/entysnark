@@ -81,7 +81,6 @@ required-features = ["groth16"]
 [badges]
 maintenance = { status = "actively-developed" }
 
-
 [[bench]]
 name = "lc"
 harness = false
