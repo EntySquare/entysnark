@@ -54,7 +54,7 @@ where
 
 fn calc_num_groups(core_count: usize, num_windows: usize) -> usize {
     // Observations show that we get the best performance when num_groups * num_windows ~= 2 * CUDA_CORES
-    8 * core_count / num_windows
+    16 * core_count / num_windows
 }
 
 
@@ -356,12 +356,12 @@ where
                            // println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                             let mut acc = <G as CurveAffine>::Projective::zero();
                             let mut single_chunk_size = 33554466; //理论最佳 2台gpu 134217727/4 = 33554431.75  33554466  1台gpu 134217727/3=44739242.333333336 44739288
-                            let mut set_window_size = 10;
+                            let mut set_window_size = 9;
                             let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
                             // println!("GABEDEBUG: start size_result:{}", size_result);
                             if size_result > 144 {
                                 // single_chunk_size = 37282740; //1台gpu时设置
-                                set_window_size = 8;
+                                set_window_size = 7;
                             }
                             println!("[{}] MultiexpKernel.multiexp:  chunks bases.len():{} , exps.len():{} , chunk_size:{}", bus_id,bases.len(), exps.len(), single_chunk_size);
                             let mut times :u32 = 1;
