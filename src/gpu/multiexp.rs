@@ -52,10 +52,10 @@ where
     _phantom: std::marker::PhantomData<E::Fr>,
 }
 
-fn calc_num_groups(core_count: usize, num_windows: usize) -> usize {
-    // Observations show that we get the best performance when num_groups * num_windows ~= 2 * CUDA_CORES
-    8 * core_count / num_windows
-}
+// fn calc_num_groups(core_count: usize, num_windows: usize) -> usize {
+//     // Observations show that we get the best performance when num_groups * num_windows ~= 2 * CUDA_CORES
+//     8 * core_count / num_windows
+// }
 
 
 // fn calc_window_size(n: usize, exp_bits: usize, core_count: usize) -> usize {
@@ -146,7 +146,8 @@ where
         // let window_size = calc_window_size(n as usize, exp_bits, self.core_count);
         let window_size = set_window_size;
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
-        let num_groups = calc_num_groups(self.core_count, num_windows);
+        // let num_groups = calc_num_groups(self.core_count, num_windows);
+        let num_groups =  8 * self.core_count / num_windows;
         let bucket_len = 1 << window_size;
         println!("[{} - {}] SingleMultiexpKernel.multiexp:  exp_bits:{},window_size:{},num_windows:{},num_groups:{},bucket_len:{}",bus_id, times, exp_bits,window_size,num_windows,num_groups,bucket_len);
 
@@ -167,7 +168,8 @@ where
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
         // Each thread will use `num_groups` * `num_windows` * `bucket_len` buckets.
-
+        let now = Instant::now();
+        println!("[{}] SingleMultiexpKernel.multiexp:  ===============> create_buffer start <======================== ",bus_id );
         let mut base_buffer = self.program.create_buffer::<G>(n)?;
         base_buffer.write_from(0, bases)?;
         let mut exp_buffer = self
@@ -181,7 +183,7 @@ where
         let result_buffer = self
             .program
             .create_buffer::<<G as CurveAffine>::Projective>(num_groups * num_windows )?;
-
+        println!("[{}] SingleMultiexpKernel.multiexp:  ===============> create_buffer end cost {:?} <======================== ",bus_id, now.elapsed() );
         // Make global work size divisible by `LOCAL_WORK_SIZE`
         let mut global_work_size = num_windows * num_groups;
         global_work_size +=
@@ -189,6 +191,8 @@ where
 
         println!("[{} - {}] SingleMultiexpKernel.multiexp: global_work_size:{},num_windows:{},num_groups:{},LOCAL_WORK_SIZE:{}",bus_id, times, global_work_size,num_windows,num_groups,LOCAL_WORK_SIZE);
 
+        let now = Instant::now();
+        println!("[{}] SingleMultiexpKernel.multiexp:  ===============> create_kernel start <======================== ",bus_id );
         let kernel = self.program.create_kernel(
             if TypeId::of::<G>() == TypeId::of::<E::G1Affine>() {
                 "G1_bellman_multiexp"
@@ -200,7 +204,7 @@ where
             global_work_size,
             None,
         );
-
+        println!("[{}] SingleMultiexpKernel.multiexp:  ===============> create_kernel end cost {:?} <======================== ",bus_id, now.elapsed() );
         kernel
             .arg(&base_buffer)
             .arg(&bucket_buffer)
@@ -215,8 +219,9 @@ where
         let mut results = vec![<G as CurveAffine>::Projective::zero(); num_groups * num_windows];
         result_buffer.read_into(0, &mut results)?;
 
-        // println!("[{}] SingleMultiexpKernel.multiexp:  ===============> add_assign result start <======================== ",bus_id );
-        // let now = Instant::now();
+        let now = Instant::now();
+        println!("[{}] SingleMultiexpKernel.multiexp:  ===============> add_assign result start <======================== ",bus_id );
+
         // Using the algorithm below, we can calculate the final result by accumulating the results
         // of those `NUM_GROUPS` * `NUM_WINDOWS` threads.
         let mut acc = <G as CurveAffine>::Projective::zero();
@@ -231,7 +236,7 @@ where
             }
             bits += w; // Process the next window
         }
-        // println!("[{}] SingleMultiexpKernel.multiexp:  ===============> add_assign result end cost {:?} <======================== ",bus_id, now.elapsed() );
+        println!("[{}] SingleMultiexpKernel.multiexp:  ===============> add_assign result end cost {:?} <======================== ",bus_id, now.elapsed() );
         Ok(acc)
     }
 }
