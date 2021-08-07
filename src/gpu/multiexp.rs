@@ -147,7 +147,7 @@ where
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         let num_groups = calc_num_groups(self.core_count, num_windows);
         let bucket_len = 1 << window_size;
-        // println!("SingleMultiexpKernel.multiexp: \n exp_bits:{},\n window_size:{},\n num_windows:{},\n num_groups:{},\n bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
+        println!("SingleMultiexpKernel.multiexp: \n exp_bits:{},\n window_size:{},\n num_windows:{},\n num_groups:{},\n bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
@@ -199,8 +199,7 @@ where
             global_work_size,
             None,
         );
-        println!("[{}] SingleMultiexpKernel.multiexp:  ===============> kernel run start <======================== ",bus_id );
-        let now = Instant::now();
+
         kernel
             .arg(&base_buffer)
             .arg(&bucket_buffer)
@@ -212,11 +211,11 @@ where
             .arg(window_size as u32)
             .run()?;
 
-        println!("[{}] SingleMultiexpKernel.multiexp:  ===============> kernel run end cost {:?} <======================== ",bus_id, now.elapsed() );
-
         let mut results = vec![<G as CurveAffine>::Projective::zero(); num_groups * num_windows];
         result_buffer.read_into(0, &mut results)?;
 
+        // println!("[{}] SingleMultiexpKernel.multiexp:  ===============> add_assign result start <======================== ",bus_id );
+        // let now = Instant::now();
         // Using the algorithm below, we can calculate the final result by accumulating the results
         // of those `NUM_GROUPS` * `NUM_WINDOWS` threads.
         let mut acc = <G as CurveAffine>::Projective::zero();
@@ -231,7 +230,7 @@ where
             }
             bits += w; // Process the next window
         }
-
+        // println!("[{}] SingleMultiexpKernel.multiexp:  ===============> add_assign result end cost {:?} <======================== ",bus_id, now.elapsed() );
         Ok(acc)
     }
 }
@@ -355,7 +354,7 @@ where
                            // println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                             let mut acc = <G as CurveAffine>::Projective::zero();
                             let mut single_chunk_size = 33554466; //理论最佳 2台gpu 134217727/4 = 33554431.75  33554466  1台gpu 134217727/3=44739242.333333336 44739288
-                            let mut set_window_size = 11;
+                            let mut set_window_size = 10;
                             let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
                             // println!("GABEDEBUG: start size_result:{}", size_result);
                             if size_result > 144 {
