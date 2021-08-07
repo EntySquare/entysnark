@@ -411,7 +411,7 @@ where
 
         // acc.add_assign(&cpu_acc.wait().unwrap());
         acc.add_assign(&cpu_r);
-        println!("MultiexpKernel.multiexp: ================================ multiexp end ================================");
+        println!("main MultiexpKernel.multiexp: ================================ multiexp end ================================");
         Ok(acc)
     }
 }
