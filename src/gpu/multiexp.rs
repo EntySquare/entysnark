@@ -36,7 +36,7 @@ pub fn get_cpu_utilization() -> f64 {
         .unwrap_or(0f64)
         .max(0f64)
         .min(1f64)*/
-    0.09
+    0.11
 }
 
 // Multiexp kernel for a single GPU
