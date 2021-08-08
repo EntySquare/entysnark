@@ -110,7 +110,9 @@ where
         let src = sources::kernel::<E>(d.brand() == opencl::Brand::Nvidia);
 
         // let exp_bits = exp_size::<E>() * 8;
-        let core_count = utils::get_core_count(&d);
+        //let core_count = utils::get_core_count(&d);
+        let core_count = 8704;
+
         // let mem = d.memory();
         // let max_n = calc_chunk_size::<E>(mem, core_count);
         // let best_n = calc_best_chunk_size(MAX_WINDOW_SIZE, core_count, exp_bits);
@@ -147,7 +149,7 @@ where
         let window_size = set_window_size;
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         // let num_groups = calc_num_groups(self.core_count, num_windows);
-        let num_groups =  16 * self.core_count / num_windows;
+        let num_groups =  2 * self.core_count / num_windows;
         let bucket_len = 1 << window_size;
         println!("[{} - {}] SingleMultiexpKernel.multiexp:  exp_bits:{},window_size:{},num_windows:{},num_groups:{},bucket_len:{}",bus_id, times, exp_bits,window_size,num_windows,num_groups,bucket_len);
 
@@ -352,12 +354,12 @@ where
                            // println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                             let mut acc = <G as CurveAffine>::Projective::zero();
                             let mut single_chunk_size = 33554466; //理论最佳 2台gpu 134217727/4 = 33554431.75  33554466  1台gpu 134217727/3=44739242.333333336 44739288
-                            let mut set_window_size = 9; //grouprate=>window_size : 2=>11,4=>11,8=>10,16=>9
+                            let mut set_window_size = 11; //grouprate=>window_size : 2=>11,4=>11,8=>10,16=>9
                             let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
                             // println!("GABEDEBUG: start size_result:{}", size_result);
                             if size_result > 144 {
                                 // single_chunk_size = 37282740; //1台gpu时设置
-                                set_window_size = 7; //grouprate=>window_size : 2=>8,4=>8,8=>8,16=>7
+                                set_window_size = 8; //grouprate=>window_size : 2=>8,4=>8,8=>8,16=>7
                             }
                             println!("[{}] MultiexpKernel.multiexp:  chunks bases.len():{} , exps.len():{} , chunk_size:{}", bus_id,bases.len(), exps.len(), single_chunk_size);
                             let mut times :u32 = 1;
