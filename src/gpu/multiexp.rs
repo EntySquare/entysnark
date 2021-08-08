@@ -131,6 +131,8 @@ where
         exps: &[<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr],
         n: usize,
         set_window_size: usize,
+        bus_id: u32,
+        times: u32,
     ) -> GPUResult<<G as CurveAffine>::Projective>
     where
         G: CurveAffine,
@@ -145,7 +147,7 @@ where
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         let num_groups = calc_num_groups(self.core_count, num_windows);
         let bucket_len = 1 << window_size;
-        // println!("SingleMultiexpKernel.multiexp: \n exp_bits:{},\n window_size:{},\n num_windows:{},\n num_groups:{},\n bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
+        println!("[{} - {}] SingleMultiexpKernel.multiexp:  exp_bits:{},window_size:{},num_windows:{},num_groups:{},bucket_len:{}",bus_id, times, exp_bits,window_size,num_windows,num_groups,bucket_len);
 
         let size1 = std::mem::size_of::<G>();
         let size2 = std::mem::size_of::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>();
@@ -154,7 +156,7 @@ where
         let mem2 = size2 * n;
         let mem3 = size3 * 4 * self.core_count * bucket_len;
         let mem4 = size3 * 4 * self.core_count;
-        println!("SingleMultiexpKernel.multiexp: \n size1:{},\n size2:{},\n size3:{},\n mem1:{},\n mem2:{},\n mem3:{},\n mem4:{}", size1,size2,size3,mem1,mem2,mem3,mem4);
+        println!("[{} - {}] SingleMultiexpKernel.multiexp: CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",bus_id, times, size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
         println!("ZQ: GPU mem need: {}Mbyte", (mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
@@ -174,12 +176,12 @@ where
         let result_buffer = self
             .program
             .create_buffer::<<G as CurveAffine>::Projective>(4 * self.core_count)?;
-
         // Make global work size divisible by `LOCAL_WORK_SIZE`
         let mut global_work_size = num_windows * num_groups;
         global_work_size +=
             (LOCAL_WORK_SIZE - (global_work_size % LOCAL_WORK_SIZE)) % LOCAL_WORK_SIZE;
 
+        println!("[{} - {}] SingleMultiexpKernel.multiexp: global_work_size:{},num_windows:{},num_groups:{},LOCAL_WORK_SIZE:{}",bus_id, times, global_work_size,num_windows,num_groups,LOCAL_WORK_SIZE);
         let kernel = self.program.create_kernel(
             if TypeId::of::<G>() == TypeId::of::<E::G1Affine>() {
                 "G1_bellman_multiexp"
@@ -292,15 +294,8 @@ where
         G: CurveAffine,
         <G as groupy::CurveAffine>::Engine: crate::bls::Engine,
     {
+        println!("main MultiexpKernel.multiexp: ================================ multiexp start ================================");
         let num_devices = self.kernels.len();
-        for (i, k) in self.kernels.iter().enumerate() {
-            println!(
-                "Multiexp: Device {}: {} (Chunk-size: {})",
-                i,
-                k.program.device().name(),
-                k.n
-            );
-        }
         // Bases are skipped by `self.1` elements, when converted from (Arc<Vec<G>>, usize) to Source
         // https://github.com/zkcrypto/bellman/blob/10c5010fd9c2ca69442dc9775ea271e286e776d8/src/multiexp.rs#L38
         let bases = &bases[skip..(skip + n)];
@@ -312,7 +307,7 @@ where
         let (cpu_exps, exps) = exps.split_at(cpu_n);
 
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
-        println!("MultiexpKernel.multiexp: \n exp_num:{},\n num_devices:{},\n chunk_size:{}",n,num_devices, chunk_size);
+        println!("main MultiexpKernel.multiexp: exp_num:{} , num_devices:{} , chunk_size:{}",n,num_devices, chunk_size);
 
         crate::multicore::THREAD_POOL.install(|| {
             use rayon::prelude::*;
@@ -327,13 +322,22 @@ where
                 // GPU
                 scoped.execute(move || {
                     let results = if n > 0 {
-                        println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{}",bases.len(),exps.len());
+                   // println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                         bases
                             .par_chunks(chunk_size)
                             .zip(exps.par_chunks(chunk_size))
                             .zip(self.kernels.par_iter_mut())
                             .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
-                                println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
+                            let bus_id = kern.program.device().bus_id().unwrap();
+                            println!(
+                                "[{}] Multiexp: Device {}: {}, core_count :{} , (Chunk-size: {})",
+                                bus_id,
+                                bus_id, // i, // Modified by long 20210312
+                                kern.program.device().name(),
+                                kern.core_count,
+                                kern.n
+                            );
+                           // println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                                 let mut acc = <G as CurveAffine>::Projective::zero();
                                 // let mut kern_num = kern.n;
                                 let kern_num = 33833300;
@@ -344,19 +348,22 @@ where
                                 if size_result > 144 {
                                      set_window_size = 9;
                                 }
+				println!("[{}] MultiexpKernel.multiexp:  chunks bases.len():{} , exps.len():{} , chunk_size:{}", bus_id,bases.len(), exps.len(), kern_num);
+                            let mut times :u32 = 1;
                                 for (bases, exps) in bases.chunks(kern_num).zip(exps.chunks(kern_num)) {
-                                    println!("MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),kern_num);
                                     let now = Instant::now();
-                                    let result = kern.multiexp(bases, exps, bases.len(),set_window_size)?;
-                                    println!("MultiexpKernel.multiexp =======================> Single multiexp cost:{:?}",now.elapsed());
-                                    acc.add_assign(&result);
-                                }
-                                Ok(acc)
-                            })
-                            .collect::<Vec<_>>()
-                    } else {
-                        Vec::new()
-                    };
+                                println!("[{} - {}] MultiexpKernel.multiexp: ===========> Single multiexp start <=========== ",bus_id,times);
+                                let result = kern.multiexp(bases, exps, bases.len(), set_window_size,bus_id,times)?;
+                                println!("[{} - {}] MultiexpKernel.multiexp: ===========> Single multiexp cost:{:?} <=========== ",bus_id,times,now.elapsed());
+                                times += 1;
+                                acc.add_assign(&result);
+                            }
+                            Ok(acc)
+                        })
+                        .collect::<Vec<_>>()
+                } else {
+                    Vec::new()
+                };
 
                     tx_gpu.send(results).unwrap();
 
@@ -384,7 +391,7 @@ where
                 acc.add_assign(&r?);
             }
             acc.add_assign(&cpu_r);
-            
+        println!("main MultiexpKernel.multiexp: ================================ multiexp end ================================");
             Ok(acc)
         })
     }
