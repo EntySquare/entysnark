@@ -311,7 +311,7 @@ where
         G: CurveAffine,
         <G as groupy::CurveAffine>::Engine: crate::bls::Engine,
     {
-        println!("main MultiexpKernel.multiexp: ================================ multiexp start ================================");
+
         let num_devices = self.kernels.len();
         // Bases are skipped by `self.1` elements, when converted from (Arc<Vec<G>>, usize) to Source
         // https://github.com/zkcrypto/bellman/blob/10c5010fd9c2ca69442dc9775ea271e286e776d8/src/multiexp.rs#L38
@@ -338,6 +338,8 @@ where
         scoped_pool.scoped(|scoped| {
             // GPU
             scoped.execute(move || {
+                let start = Instant::now();
+                println!("main MultiexpKernel.multiexp: ================================ gpu multiexp start ================================");
                 let results = if n > 0 {
                    // println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                     bases
@@ -380,14 +382,14 @@ where
                 } else {
                     Vec::new()
                 };
-
+                println!("main MultiexpKernel.multiexp: ================================ gpu multiexp cost:{:?} end ================================",start.elapsed());
                 tx_gpu.send(results).unwrap();
 
             });
             // CPU
             scoped.execute(move || {
-                let now = Instant::now();
-                println!("main MultiexpKernel.cpu_multiexp: ===========> cpu_multiexp start <=========== ");
+                let start = Instant::now();
+                println!("main MultiexpKernel.cpu_multiexp: ================================ cpu multiexp start ================================ ");
                 let cpu_acc = cpu_multiexp(
                     &pool,
                     (Arc::new(cpu_bases.to_vec()), 0),
@@ -395,7 +397,7 @@ where
                     Arc::new(cpu_exps.to_vec()),
                     &mut None,
                 );
-                println!("main MultiexpKernel.cpu_multiexp: ===========> cpu_multiexp cost:{:?} <=========== ",now.elapsed());
+                println!("main MultiexpKernel.cpu_multiexp: ================================ cpu multiexp cost:{:?} ================================ ",start.elapsed());
                 let cpu_r = cpu_acc.wait().unwrap();
 
                 tx_cpu.send(cpu_r).unwrap();
@@ -415,7 +417,7 @@ where
 
         // acc.add_assign(&cpu_acc.wait().unwrap());
         acc.add_assign(&cpu_r);
-        println!("main MultiexpKernel.multiexp: ================================ multiexp end ================================");
+
         Ok(acc)
     }
 }
