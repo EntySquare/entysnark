@@ -20,7 +20,7 @@ use std::time::Instant;
 
 
 // const MAX_WINDOW_SIZE: usize = 11; // 10;
-const LOCAL_WORK_SIZE: usize = 256;
+const LOCAL_WORK_SIZE: usize = 512;
 // const MEMORY_PADDING: f64 = 0.1f64; // 0.2f64; // Let 20% of GPU memory be free
 
 pub fn get_cpu_utilization() -> f64 {
