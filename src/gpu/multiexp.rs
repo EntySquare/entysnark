@@ -138,22 +138,16 @@ where
     where
         G: CurveAffine,
     {
-        let now = Instant::now();
-        println!("[{} - {}] SingleMultiexpKernel.multiexp:  ===============> gpulock start <======================== ",bus_id,times );
         if locks::PriorityLock::should_break(self.priority) {
             return Err(GPUError::GPUTaken);
         }
-        println!("[{} - {}] SingleMultiexpKernel.multiexp:  ===============> gpulock result end cost {:?} <======================== ",bus_id,times, now.elapsed() );
-
-        let now = Instant::now();
-        println!("[{} - {}] SingleMultiexpKernel.multiexp:  ===============> prepare params start <======================== ",bus_id,times );
 
         let exp_bits = exp_size::<E>() * 8;
         // let window_size = calc_window_size(n as usize, exp_bits, self.core_count);
         let window_size = set_window_size;
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         // let num_groups = calc_num_groups(self.core_count, num_windows);
-        let num_groups =  8 * self.core_count / num_windows;
+        let num_groups =  16 * self.core_count / num_windows;
         let bucket_len = 1 << window_size;
         println!("[{} - {}] SingleMultiexpKernel.multiexp:  exp_bits:{},window_size:{},num_windows:{},num_groups:{},bucket_len:{}",bus_id, times, exp_bits,window_size,num_windows,num_groups,bucket_len);
 
@@ -169,13 +163,10 @@ where
         let mem3 = size3 * num_groups * num_windows * bucket_len;
         let mem4 = size3 * num_groups * num_windows ;
         println!("[{} - {}] SingleMultiexpKernel.multiexp: CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",bus_id, times, size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
-        println!("[{} - {}] SingleMultiexpKernel.multiexp:  ===============> prepare params end cost {:?} <======================== ",bus_id,times, now.elapsed() );
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
         // Each thread will use `num_groups` * `num_windows` * `bucket_len` buckets.
-        let now = Instant::now();
-        println!("[{} - {}] SingleMultiexpKernel.multiexp:  ===============> create_buffer start <======================== ",bus_id,times );
         let mut base_buffer = self.program.create_buffer::<G>(n)?;
         base_buffer.write_from(0, bases)?;
         let mut exp_buffer = self
@@ -189,7 +180,6 @@ where
         let result_buffer = self
             .program
             .create_buffer::<<G as CurveAffine>::Projective>(num_groups * num_windows )?;
-        println!("[{} - {}] SingleMultiexpKernel.multiexp:  ===============> create_buffer end cost {:?} <======================== ",bus_id,times, now.elapsed() );
         // Make global work size divisible by `LOCAL_WORK_SIZE`
         let mut global_work_size = num_windows * num_groups;
         global_work_size +=
@@ -197,8 +187,6 @@ where
 
         println!("[{} - {}] SingleMultiexpKernel.multiexp: global_work_size:{},num_windows:{},num_groups:{},LOCAL_WORK_SIZE:{}",bus_id, times, global_work_size,num_windows,num_groups,LOCAL_WORK_SIZE);
 
-        let now = Instant::now();
-        println!("[{} - {}] SingleMultiexpKernel.multiexp:  ===============> create_kernel start <======================== ",bus_id,times);
         let kernel = self.program.create_kernel(
             if TypeId::of::<G>() == TypeId::of::<E::G1Affine>() {
                 "G1_bellman_multiexp"
@@ -210,10 +198,7 @@ where
             global_work_size,
             None,
         );
-        println!("[{} - {}] SingleMultiexpKernel.multiexp:  ===============> create_kernel end cost {:?} <======================== ",bus_id,times, now.elapsed() );
 
-        let now = Instant::now();
-        println!("[{} - {}] SingleMultiexpKernel.multiexp:  ===============> run kernel start <======================== ",bus_id,times );
         kernel
             .arg(&base_buffer)
             .arg(&bucket_buffer)
@@ -227,11 +212,6 @@ where
 
         let mut results = vec![<G as CurveAffine>::Projective::zero(); num_groups * num_windows];
         result_buffer.read_into(0, &mut results)?;
-        println!("[{} - {}] SingleMultiexpKernel.multiexp:  ===============> run kernel end cost {:?} <======================== ",bus_id,times, now.elapsed() );
-
-
-        let now = Instant::now();
-        println!("[{} - {}]SingleMultiexpKernel.multiexp:  ===============> add_assign result start <======================== ",bus_id ,times);
 
         // Using the algorithm below, we can calculate the final result by accumulating the results
         // of those `NUM_GROUPS` * `NUM_WINDOWS` threads.
@@ -247,7 +227,6 @@ where
             }
             bits += w; // Process the next window
         }
-        println!("[{} - {}] SingleMultiexpKernel.multiexp:  ===============> add_assign result end cost {:?} <======================== ",bus_id,times, now.elapsed() );
         Ok(acc)
     }
 }
@@ -372,12 +351,12 @@ where
                            // println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                             let mut acc = <G as CurveAffine>::Projective::zero();
                             let mut single_chunk_size = 33554466; //理论最佳 2台gpu 134217727/4 = 33554431.75  33554466  1台gpu 134217727/3=44739242.333333336 44739288
-                            let mut set_window_size = 10;
+                            let mut set_window_size = 9; //grouprate=>window_size : 2=>11,4=>11,8=>10,16=>9
                             let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
                             // println!("GABEDEBUG: start size_result:{}", size_result);
                             if size_result > 144 {
                                 // single_chunk_size = 37282740; //1台gpu时设置
-                                set_window_size = 8;
+                                set_window_size = 7; //grouprate=>window_size : 2=>8,4=>8,8=>8,16=>7
                             }
                             println!("[{}] MultiexpKernel.multiexp:  chunks bases.len():{} , exps.len():{} , chunk_size:{}", bus_id,bases.len(), exps.len(), single_chunk_size);
                             let mut times :u32 = 1;
