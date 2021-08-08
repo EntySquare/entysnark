@@ -36,7 +36,7 @@ pub fn get_cpu_utilization() -> f64 {
         .unwrap_or(0f64)
         .max(0f64)
         .min(1f64)*/
-    0.1
+    0.2
 }
 
 // Multiexp kernel for a single GPU
@@ -265,10 +265,11 @@ where
                     );
                 }
                 // 只用一个GPU
-                if index == 0 {
+               if index == 1{
                     index += 1;
                     res.ok()
                 }else{
+                    index += 1;
                     None
                 }
                 // 多个GPU
@@ -321,6 +322,7 @@ where
         let n = n - cpu_n;
         let (cpu_bases, bases) = bases.split_at(cpu_n);
         let (cpu_exps, exps) = exps.split_at(cpu_n);
+        println!("main MultiexpKernel.multiexp:cpu_utilization:{} , cpu_n={}",get_cpu_utilization(),cpu_n);
 
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
         println!("main MultiexpKernel.multiexp: exp_num:{} , num_devices:{} , chunk_size:{}",n,num_devices, chunk_size);
@@ -384,6 +386,8 @@ where
             });
             // CPU
             scoped.execute(move || {
+                let now = Instant::now();
+                println!("MultiexpKernel.cpu_multiexp: ===========> cpu_multiexp start <=========== ");
                 let cpu_acc = cpu_multiexp(
                     &pool,
                     (Arc::new(cpu_bases.to_vec()), 0),
@@ -391,6 +395,7 @@ where
                     Arc::new(cpu_exps.to_vec()),
                     &mut None,
                 );
+                println!("MultiexpKernel.cpu_multiexp: ===========> cpu_multiexp cost:{:?} <=========== ",now.elapsed());
                 let cpu_r = cpu_acc.wait().unwrap();
 
                 tx_cpu.send(cpu_r).unwrap();
