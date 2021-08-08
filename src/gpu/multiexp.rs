@@ -36,7 +36,7 @@ pub fn get_cpu_utilization() -> f64 {
         .unwrap_or(0f64)
         .max(0f64)
         .min(1f64)*/
-    0.2
+    0.15
 }
 
 // Multiexp kernel for a single GPU
@@ -387,7 +387,7 @@ where
             // CPU
             scoped.execute(move || {
                 let now = Instant::now();
-                println!("MultiexpKernel.cpu_multiexp: ===========> cpu_multiexp start <=========== ");
+                println!("main MultiexpKernel.cpu_multiexp: ===========> cpu_multiexp start <=========== ");
                 let cpu_acc = cpu_multiexp(
                     &pool,
                     (Arc::new(cpu_bases.to_vec()), 0),
@@ -395,7 +395,7 @@ where
                     Arc::new(cpu_exps.to_vec()),
                     &mut None,
                 );
-                println!("MultiexpKernel.cpu_multiexp: ===========> cpu_multiexp cost:{:?} <=========== ",now.elapsed());
+                println!("main MultiexpKernel.cpu_multiexp: ===========> cpu_multiexp cost:{:?} <=========== ",now.elapsed());
                 let cpu_r = cpu_acc.wait().unwrap();
 
                 tx_cpu.send(cpu_r).unwrap();
