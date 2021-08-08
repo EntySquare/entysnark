@@ -342,10 +342,11 @@ where
                         .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
                             let bus_id = kern.program.device().bus_id().unwrap();
                             println!(
-                                "[{}] Multiexp: Device {}: {} (Chunk-size: {})",
+                                "[{}] Multiexp: Device {}: {} core count:{} (Chunk-size: {})",
                                 bus_id,
                                 bus_id, // i, // Modified by long 20210312
                                 kern.program.device().name(),
+                                kern.core_count,
                                 kern.n
                             );
                            // println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
