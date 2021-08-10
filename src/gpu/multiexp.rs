@@ -338,7 +338,7 @@ where
             // GPU
             scoped.execute(move || {
                 let start = Instant::now();
-               // println!("main MultiexpKernel.multiexp: ================================ gpu multiexp start ================================");
+                println!("main MultiexpKernel.multiexp: ================================ gpu multiexp start ================================");
                 let results = if n > 0 {
                    // println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                     bases
@@ -381,14 +381,14 @@ where
                 } else {
                     Vec::new()
                 };
-                // println!("main MultiexpKernel.multiexp: ================================ gpu multiexp cost:{:?} end ================================",start.elapsed());
+                println!("main MultiexpKernel.multiexp: ================================ gpu multiexp cost:{:?} end ================================",start.elapsed());
                 tx_gpu.send(results).unwrap();
 
             });
             // CPU
             scoped.execute(move || {
                 let start = Instant::now();
-                // println!("main MultiexpKernel.multiexp: ================================ cpu multiexp start ================================ ");
+                println!("main MultiexpKernel.multiexp: ================================ cpu multiexp start ================================ ");
                 let cpu_acc = cpu_multiexp(
                     &pool,
                     (Arc::new(cpu_bases.to_vec()), 0),
