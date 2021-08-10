@@ -296,14 +296,14 @@ fn best_fft<E: Engine, T: Group<E>>(
 ) -> gpu::GPUResult<()> {
     //println!("domain.best_fft: a_s ifft start...");
     //println!("domain.best_fft:log_n: {} ,log_cpus :{}",log_n,worker.log_num_cpus());
-    // if let Some(ref mut kern) = kern {
-    //     if kern
-    //         .with(|k: &mut gpu::FFTKernel<E>| gpu_fft(k, a, omega, log_n))
-    //         .is_ok()
-    //     {
-    //         return Ok(());
-    //     }
-    // }
+    if let Some(ref mut kern) = kern {
+        if kern
+            .with(|k: &mut gpu::FFTKernel<E>| gpu_fft(k, a, omega, log_n))
+            .is_ok()
+        {
+            return Ok(());
+        }
+    }
 
     let log_cpus = worker.log_num_cpus();
     if log_n <= log_cpus {
