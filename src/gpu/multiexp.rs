@@ -164,7 +164,7 @@ where
         //2 * self.core_count =`num_groups` * `num_windows`
         let mem3 = size3 * num_groups * num_windows * bucket_len;
         let mem4 = size3 * num_groups * num_windows ;
-        println!("[{} - {}] SingleMultiexpKernel.multiexp: CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",bus_id, times, size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
+        // println!("[{} - {}] SingleMultiexpKernel.multiexp: CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",bus_id, times, size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
@@ -321,7 +321,7 @@ where
         let n = n - cpu_n;
         let (cpu_bases, bases) = bases.split_at(cpu_n);
         let (cpu_exps, exps) = exps.split_at(cpu_n);
-        //println!("main MultiexpKernel.multiexp:cpu_utilization:{} , cpu_n={}",get_cpu_utilization(),cpu_n);
+        println!("main MultiexpKernel.multiexp:cpu_utilization:{} , cpu_n={}",get_cpu_utilization(),cpu_n);
 
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
         //println!("main MultiexpKernel.multiexp: exp_num:{} , num_devices:{} , chunk_size:{}",n,num_devices, chunk_size);
@@ -371,7 +371,7 @@ where
                                 let now = Instant::now();
                                 //println!("[{} - {}] MultiexpKernel.multiexp: ===========> Single multiexp start <=========== ",bus_id,times);
                                 let result = kern.multiexp(bases, exps, bases.len(), set_window_size,bus_id,times)?;
-                                //println!("[{} - {}] MultiexpKernel.multiexp: ===========> Single multiexp cost:{:?} <=========== ",bus_id,times,now.elapsed());
+                                println!("[{} - {}] MultiexpKernel.multiexp: ===========> Single multiexp cost:{:?} <=========== ",bus_id,times,now.elapsed());
                                 times += 1;
                                 acc.add_assign(&result);
                             }
@@ -396,7 +396,7 @@ where
                     Arc::new(cpu_exps.to_vec()),
                     &mut None,
                 );
-                // println!("main MultiexpKernel.multiexp: ================================ cpu multiexp cost:{:?} end ================================ ",start.elapsed());
+                println!("main MultiexpKernel.multiexp: ================================ cpu multiexp cost:{:?} end ================================ ",start.elapsed());
                 let cpu_r = cpu_acc.wait().unwrap();
 
                 tx_cpu.send(cpu_r).unwrap();
