@@ -454,22 +454,12 @@ where
 
             let par_now = Instant::now();
             println!("===[{}]=== prover.create_proof_batch_priority: a_s ifft start...",times);
-            if times == 1{
-                a.ifft(&worker, &mut None)?;
-                a.coset_fft(&worker,&mut None)?;
-                b.ifft(&worker, &mut None)?;
-                b.coset_fft(&worker, &mut None)?;
-                c.ifft(&worker, &mut None)?;
-                c.coset_fft(&worker,&mut None)?;
-            }else{
-                a.ifft(&worker, &mut fft_kern)?;
-                a.coset_fft(&worker, &mut fft_kern)?;
-                b.ifft(&worker, &mut fft_kern)?;
-                b.coset_fft(&worker, &mut fft_kern)?;
-                c.ifft(&worker, &mut fft_kern)?;
-                c.coset_fft(&worker, &mut fft_kern)?;
-            }
-
+            a.ifft(&worker, &mut fft_kern)?;
+            a.coset_fft(&worker, &mut fft_kern)?;
+            b.ifft(&worker, &mut fft_kern)?;
+            b.coset_fft(&worker, &mut fft_kern)?;
+            c.ifft(&worker, &mut fft_kern)?;
+            c.coset_fft(&worker, &mut fft_kern)?;
             println!("===[{}]=== prover.create_proof_batch_priority: a_s ifft end cost: {:?}",times,par_now.elapsed());
 
             a.mul_assign(&worker, &b);
@@ -477,12 +467,7 @@ where
             a.sub_assign(&worker, &c);
             drop(c);
             a.divide_by_z_on_coset(&worker);
-            if times==1{
-                a.icoset_fft(&worker, &mut None)?;
-            }else{
-                a.icoset_fft(&worker, &mut fft_kern)?;
-            }
-
+            a.icoset_fft(&worker, &mut fft_kern)?;
             let mut a = a.into_coeffs();
             let a_len = a.len() - 1;
             a.truncate(a_len);
