@@ -25,7 +25,7 @@ const LOCAL_WORK_SIZE: usize = 256;
 
 pub fn get_cpu_utilization() -> f64 {
     use std::env;
-    env::var("gi")
+    env::var("BELLMAN_CPU_UTILIZATION")
         .and_then(|v| match v.parse() {
             Ok(val) => Ok(val),
             Err(_) => {
