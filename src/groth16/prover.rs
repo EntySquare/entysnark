@@ -777,7 +777,6 @@ where
     C: Circuit<E> + Send,
 {
     let start = Instant::now();
-    let mut times = 1;
     let provers = circuits
         .into_par_iter()
         .map(|circuit| -> Result<_, SynthesisError> {
@@ -785,10 +784,9 @@ where
             prover.alloc_input(|| "", || Ok(E::Fr::one()))?;
 
             let par_now = Instant::now();
-            println!("===[{}]=== prover.create_proof_batch_priority_inner: circuit.synthesize start...",times);
+            println!("prover.create_proof_batch_priority_inner: circuit.synthesize start...",times);
             circuit.synthesize(&mut prover)?;
             println!("===[{}]=== prover.create_proof_batch_priority_inner: circuit.synthesize end cost: {:?}",times, par_now.elapsed());
-            times +=1;
 
             for i in 0..prover.input_assignment.len() {
                 prover.enforce(|| "", |lc| lc + Variable(Index::Input(i)), |lc| lc, |lc| lc);
