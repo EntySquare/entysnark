@@ -264,7 +264,7 @@ where
                     );
                 }
                 // 只用一个GPU
-               if index == 1{
+               if index == 0 {
                     index += 1;
                     res.ok()
                 }else{
