@@ -440,6 +440,7 @@ where
 
     let now = Instant::now();
     println!("prover.create_proof_batch_priority: a_s start...");
+    println!("prover.create_proof_batch_priority: provers length:{}", provers.len());
     let mut times = 1;
     let a_s = provers
         .iter_mut()
