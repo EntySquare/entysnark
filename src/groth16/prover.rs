@@ -444,7 +444,6 @@ where
     let a_s = provers
         .iter_mut()
         .map(|prover| {
-            let par_now = Instant::now();
             let mut a =
                 EvaluationDomain::from_coeffs(std::mem::replace(&mut prover.a, Vec::new()))?;
             let mut b =
@@ -462,7 +461,6 @@ where
             c.coset_fft(&worker, &mut fft_kern)?;
             println!("[{}] prover.create_proof_batch_priority: a_s ifft end time: {:?}",times,par_now.elapsed());
 
-            let par_now = Instant::now();
             a.mul_assign(&worker, &b);
             drop(b);
             a.sub_assign(&worker, &c);
@@ -490,7 +488,6 @@ where
     let h_s = a_s
         .into_iter()
         .map(|a| {
-            // Modified by jackoelv for C2 20210330
             // let h = multiexp(
             let h = multiexp_fulldensity(
                 &worker,
