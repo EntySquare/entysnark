@@ -501,6 +501,7 @@ where
                 &mut multiexp_kern,
             );
             println!("===[{}]=== prover.create_proof_batch_priority: h_s multiexp end time: {:?}",times,par_now.elapsed());
+            times += 1;
             Ok(h)
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
@@ -525,6 +526,7 @@ where
                 &mut multiexp_kern,
             );
             println!("===[{}]=== prover.create_proof_batch_priority: l_s multiexp end time: {:?}",times,par_now.elapsed());
+            times += 1;
             Ok(l)
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
@@ -672,6 +674,7 @@ where
                 &mut multiexp_kern,
             );
             println!("===[{}]=== prover.create_proof_batch_priority: input b_g2_aux end time: {:?}", times, par_now.elapsed());
+            times += 1;
 
             Ok((
                 a_inputs,
