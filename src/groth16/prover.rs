@@ -460,7 +460,6 @@ where
             b.coset_fft(&worker, &mut fft_kern)?;
             c.ifft(&worker, &mut fft_kern)?;
             c.coset_fft(&worker, &mut fft_kern)?;
-            println!("===[{}]=== prover.create_proof_batch_priority: a_s ifft end cost: {:?}",times,par_now.elapsed());
 
             a.mul_assign(&worker, &b);
             drop(b);
@@ -468,6 +467,7 @@ where
             drop(c);
             a.divide_by_z_on_coset(&worker);
             a.icoset_fft(&worker, &mut fft_kern)?;
+            println!("===[{}]=== prover.create_proof_batch_priority: a_s ifft end cost: {:?}",times,par_now.elapsed());
             let mut a = a.into_coeffs();
             let a_len = a.len() - 1;
             a.truncate(a_len);
