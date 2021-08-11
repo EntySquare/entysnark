@@ -247,7 +247,7 @@ where
     E: Engine,
 {
     pub fn create(priority: bool) -> GPUResult<MultiexpKernel<E>> {
-        let lock = locks::GPULock::lock();
+        let lock = locks::GPULock::lock_all();
 
         let devices = opencl::Device::all();
         let mut index = 0;
