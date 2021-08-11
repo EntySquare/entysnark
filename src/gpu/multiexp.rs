@@ -321,7 +321,7 @@ where
         let n = n - cpu_n;
         let (cpu_bases, bases) = bases.split_at(cpu_n);
         let (cpu_exps, exps) = exps.split_at(cpu_n);
-        println!("main MultiexpKernel.multiexp:cpu_utilization:{} , cpu_n={}",get_cpu_utilization(),cpu_n);
+        println!("main MultiexpKernel.multiexp:cpu_utilization:{} , cpu_n={}, gpu_n={}",get_cpu_utilization(),cpu_n,n);
 
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
         // println!("main MultiexpKernel.multiexp: exp_num:{} , num_devices:{} , chunk_size:{}",n,num_devices, chunk_size);
@@ -357,7 +357,9 @@ where
                             // );
                            // println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                             let mut acc = <G as CurveAffine>::Projective::zero();
-                            let mut single_chunk_size = 33554466; //理论最佳 2台gpu 134217727/4 = 33554431.75  33554466  1台gpu 134217727/3=44739242.333333336 44739288
+                            // let single_chunk_size = 33554466; //理论最佳 2台gpu 134217727/4 = 33554431.75  33554466  1台gpu 134217727/3=44739242.333333336 44739288
+                            //let single_chunk_size = (((chunk_size as f64) / (4 as f64)).ceil() + 34 as f64 ) as usize;
+                            let single_chunk_size = (33554466 as f64 *(1 as f64 - get_cpu_utilization()) as f64).ceil() as usize;
                             let mut set_window_size = 11; //grouprate=>window_size : 2=>11,4=>11,8=>10,16=>9
                             let size_result = std::mem::size_of::<<G as CurveAffine>::Projective>();
                             // println!("GABEDEBUG: start size_result:{}", size_result);
@@ -396,7 +398,7 @@ where
                     Arc::new(cpu_exps.to_vec()),
                     &mut None,
                 );
-                println!("main MultiexpKernel.multiexp: ================================ cpu multiexp cost:{:?} ================================ ",start.elapsed());
+                println!("main MultiexpKernel.multiexp: ================================ cpu multiexp cost:{:?} end ================================ ",start.elapsed());
                 let cpu_r = cpu_acc.wait().unwrap();
 
                 tx_cpu.send(cpu_r).unwrap();
