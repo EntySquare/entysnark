@@ -130,8 +130,8 @@ where
     pub fn radix_fft(&mut self, a: &mut [E::Fr], omega: &E::Fr, log_n: u32) -> GPUResult<()> {
         let start = Instant::now();
         println!("fft.radix_fft: ========== radix_fft start ==========");
-        println!("fft.radix_fft: data.len:{}, log_n:{}", a.len(),log_n);
-
+        let fr_size=std::mem::size_of::<E::Fr>();
+        println!("fft.radix_fft: data.len:{}, log_n:{},fr_size:{} ", a.len(),log_n,fr_size);
         let n = 1 << log_n;
         let now = Instant::now();
         println!("fft.radix_fft: create_buffer start..");
