@@ -164,17 +164,25 @@ where
         //2 * self.core_count =`num_groups` * `num_windows`
         let mem3 = size3 * num_groups * num_windows * bucket_len;
         let mem4 = size3 * num_groups * num_windows ;
-        // println!("[{} - {}] SingleMultiexpKernel.multiexp: CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",bus_id, times, size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
+        println!("[{} - {}] SingleMultiexpKernel.multiexp: CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",bus_id, times, size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
         // Each thread will use `num_groups` * `num_windows` * `bucket_len` buckets.
         let mut base_buffer = self.program.create_buffer::<G>(n)?;
+        let _now = Instant::now();
+        println!("[{} - {}] SingleMultiexpKernel.multiexp: base_buffer.write_from start... result.len:{}",bus_id, times, bases.len());
         base_buffer.write_from(0, bases)?;
+        println!("[{} - {}] SingleMultiexpKernel.multiexp: base_buffer.write_from end cost:{:?}",bus_id, times,_now.elapsed());
+
         let mut exp_buffer = self
             .program
             .create_buffer::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>(n)?;
+        let _now = Instant::now();
+        println!("[{} - {}] SingleMultiexpKernel.multiexp: exp_buffer.write_from start... result.len:{}",bus_id, times, exps.len());
         exp_buffer.write_from(0, exps)?;
+        println!("[{} - {}] SingleMultiexpKernel.multiexp: exp_buffer.write_from end cost:{:?}",bus_id, times, _now.elapsed());
+
 
         let bucket_buffer = self
             .program
@@ -213,7 +221,11 @@ where
             .run()?;
 
         let mut results = vec![<G as CurveAffine>::Projective::zero(); num_groups * num_windows];
+
+        let _now = Instant::now();
+        println!("[{} - {}] SingleMultiexpKernel.multiexp: result_buffer.read_into start... result.len:{}",bus_id, times,results.len());
         result_buffer.read_into(0, &mut results)?;
+        println!("[{} - {}] SingleMultiexpKernel.multiexp: result_buffer.read_into end cost:{:?}",bus_id, times,_now.elapsed());
 
         // Using the algorithm below, we can calculate the final result by accumulating the results
         // of those `NUM_GROUPS` * `NUM_WINDOWS` threads.
