@@ -333,7 +333,7 @@ where
         let n = n - cpu_n;
         let (cpu_bases, bases) = bases.split_at(cpu_n);
         let (cpu_exps, exps) = exps.split_at(cpu_n);
-        println!("main MultiexpKernel.multiexp:cpu_utilization:{} , cpu_n={}",get_cpu_utilization(),cpu_n);
+        println!("main MultiexpKernel.multiexp:cpu_utilization:{} , cpu_n={}, gpu_n={}",get_cpu_utilization(),cpu_n,n);
 
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
         //println!("main MultiexpKernel.multiexp: exp_num:{} , num_devices:{} , chunk_size:{}",n,num_devices, chunk_size);
