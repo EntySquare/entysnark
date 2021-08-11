@@ -7,6 +7,7 @@ use ff::Field;
 use log::info;
 use rust_gpu_tools::*;
 use std::cmp;
+use std::time::Instant;
 
 const LOG2_MAX_ELEMENTS: usize = 32; // At most 2^32 elements is supported.
 const MAX_LOG2_RADIX: u32 = 8; // Radix256
