@@ -34,17 +34,17 @@ where
     pub fn create(priority: bool) -> GPUResult<FFTKernel<E>> {
         let lock = locks::GPULock::lock();
 
-         //let devices = cuda::Device::all();
+         let devices = cuda::Device::all();
         // if devices.is_empty() {
         //     return Err(GPUError::Simple("No working GPUs found!"));
         // }
         //
         // // Select the first device for FFT
-        //let device = devices[0].clone();
-        let device = *cuda::Device::all()
+        let device = devices[0].clone();
+        /*let device = *cuda::Device::all()
             .iter()
             .find(|device| device.cuda_device().is_some())
-            .ok_or(GPUError::Simple("No working GPUs found!"))?;
+            .ok_or(GPUError::Simple("No working GPUs found!"))?;*/
 
         let filename = CStr::from_bytes_with_nul(SOURCE_BIN).unwrap();
         let cuda_device = device.cuda_device().ok_or(cuda::GPUError::DeviceNotFound)?;
