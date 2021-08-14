@@ -17,6 +17,7 @@ use std::sync::mpsc;
 extern crate scoped_threadpool;
 use scoped_threadpool::Pool;
 use std::time::Instant;
+use std::ffi::CStr;
 
 
 // const MAX_WINDOW_SIZE: usize = 11; // 10;
@@ -43,7 +44,7 @@ pub struct SingleMultiexpKernel<E>
 where
     E: Engine,
 {
-    program: opencl::Program,
+    program: cuda::Program,
 
     core_count: usize,
     n: usize,
@@ -106,8 +107,8 @@ impl<E> SingleMultiexpKernel<E>
 where
     E: Engine,
 {
-    pub fn create(d: opencl::Device, priority: bool) -> GPUResult<SingleMultiexpKernel<E>> {
-        let src = sources::kernel::<E>(d.brand() == opencl::Brand::Nvidia);
+    pub fn create(d: cuda::Device, priority: bool) -> GPUResult<SingleMultiexpKernel<E>> {
+        let src = sources::kernel::<E>(d.brand() == cuda::Brand::Nvidia);
 
         // let exp_bits = exp_size::<E>() * 8;
         //let core_count = utils::get_core_count(&d);
@@ -118,9 +119,12 @@ where
         // let best_n = calc_best_chunk_size(MAX_WINDOW_SIZE, core_count, exp_bits);
         // let n = std::cmp::min(max_n, best_n);
         let n = 568; // Not used
-
+        let filename = CStr::from_bytes_with_nul(SOURCE_BIN).unwrap();
+        let cuda_device = device.cuda_device().ok_or(GpuToolsError::DeviceNotFound)?;
+        let program = cuda::Program::from_binary(cuda_device, &filename)?;
         Ok(SingleMultiexpKernel {
-            program: opencl::Program::from_opencl(d, &src)?,
+            //program: cuda::Program::from_cuda(d, &src)?,
+            program,
             core_count,
             n,
             priority,
@@ -249,7 +253,7 @@ where
     pub fn create(priority: bool) -> GPUResult<MultiexpKernel<E>> {
         let lock = locks::GPULock::lock();
 
-        let devices = opencl::Device::all();
+        let devices = cuda::Device::all();
         let mut index = 0;
 
         let kernels: Vec<_> = devices

@@ -85,3 +85,6 @@ maintenance = { status = "actively-developed" }
 [[bench]]
 name = "lc"
 harness = false
+
+[patch.crates-io]
+rust-gpu-tools = { path = "../entygputool" }

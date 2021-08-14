@@ -8,18 +8,20 @@ use log::info;
 use rust_gpu_tools::*;
 use std::cmp;
 use std::time::Instant;
+use std::ffi::CStr;
 
 const LOG2_MAX_ELEMENTS: usize = 32; // At most 2^32 elements is supported.
 const MAX_LOG2_RADIX: u32 = 8; // Radix256
 const MAX_LOG2_LOCAL_WORK_SIZE: u32 = 7; // 128
+const SOURCE_BIN: &[u8] = b"./src/gpu/multiexp/multiexp32.fatbin\0";
 
 pub struct FFTKernel<E>
 where
     E: Engine,
 {
-    program: opencl::Program,
-    pq_buffer: opencl::Buffer<E::Fr>,
-    omegas_buffer: opencl::Buffer<E::Fr>,
+    program: cuda::Program,
+    pq_buffer: cuda::Buffer<E::Fr>,
+    omegas_buffer: cuda::Buffer<E::Fr>,
     _lock: locks::GPULock, // RFC 1857: struct fields are dropped in the same order as they are declared.
     priority: bool,
 }
@@ -31,17 +33,25 @@ where
     pub fn create(priority: bool) -> GPUResult<FFTKernel<E>> {
         let lock = locks::GPULock::lock();
 
-        let devices = opencl::Device::all();
-        if devices.is_empty() {
-            return Err(GPUError::Simple("No working GPUs found!"));
-        }
+         //let devices = cuda::Device::all();
+        // if devices.is_empty() {
+        //     return Err(GPUError::Simple("No working GPUs found!"));
+        // }
+        //
+        // // Select the first device for FFT
+        //let device = devices[0].clone();
+        let device = *cuda::Device::all()
+            .iter()
+            .find(|device| device.cuda_device().is_some())
+            .ok_or(GPUError::Simple("No working GPUs found!"))?;
 
-        // Select the first device for FFT
-        let device = devices[0].clone();
+        let filename = CStr::from_bytes_with_nul(SOURCE_BIN).unwrap();
+        let cuda_device = device.cuda_device().ok_or(GpuToolsError::DeviceNotFound)?;
+        let program = cuda::Program::from_binary(cuda_device, &filename)?;
 
-        let src = sources::kernel::<E>(device.brand() == opencl::Brand::Nvidia);
-
-        let program = opencl::Program::from_opencl(device, &src)?;
+        // let src = sources::kernel::<E>(device.brand() == cuda::Brand::Nvidia);
+        //
+        // let program = cuda::Program::from_cuda(&device, &src)?;
         let pq_buffer = program.create_buffer::<E::Fr>(1 << MAX_LOG2_RADIX >> 1)?;
         let omegas_buffer = program.create_buffer::<E::Fr>(LOG2_MAX_ELEMENTS)?;
 
@@ -64,8 +74,8 @@ where
     /// * `max_deg` - The precalculated values pq` and `omegas` are valid for radix degrees up to `max_deg`
     fn radix_fft_round(
         &mut self,
-        src_buffer: &opencl::Buffer<E::Fr>,
-        dst_buffer: &opencl::Buffer<E::Fr>,
+        src_buffer: &cuda::Buffer<E::Fr>,
+        dst_buffer: &cuda::Buffer<E::Fr>,
         log_n: u32,
         log_p: u32,
         deg: u32,
@@ -81,18 +91,18 @@ where
         let kernel = self.program.create_kernel(
             "radix_fft",
             global_work_size as usize,
-            Some(local_work_size as usize),
+            local_work_size as usize,
         );
         kernel
             .arg(src_buffer)
             .arg(dst_buffer)
             .arg(&self.pq_buffer)
             .arg(&self.omegas_buffer)
-            .arg(opencl::LocalBuffer::<E::Fr>::new(1 << deg))
-            .arg(n)
-            .arg(log_p)
-            .arg(deg)
-            .arg(max_deg)
+            .arg(cuda::LocalBuffer::<E::Fr>::new(1 << deg))
+            .arg(&n)
+            .arg(&log_p)
+            .arg(&deg)
+            .arg(&max_deg)
             .run()?;
         Ok(())
     }
