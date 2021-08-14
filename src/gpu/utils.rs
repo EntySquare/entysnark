@@ -57,7 +57,7 @@ lazy_static::lazy_static! {
 }
 
 const DEFAULT_CORE_COUNT: usize = 2560;
-pub fn get_core_count(d: &opencl::Device) -> usize {
+pub fn get_core_count(d: &cuda::Device) -> usize {
     let name = d.name();
     match CORE_COUNTS.get(&name[..]) {
         Some(&cores) => cores,
@@ -75,7 +75,7 @@ pub fn get_core_count(d: &opencl::Device) -> usize {
 }
 
 pub fn dump_device_list() {
-    for d in opencl::Device::all() {
+    for d in cuda::Device::all() {
         info!("Device: {:?}", d);
     }
 }

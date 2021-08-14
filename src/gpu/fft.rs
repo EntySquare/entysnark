@@ -5,7 +5,8 @@ use crate::gpu::{
 };
 use ff::Field;
 use log::info;
-use rust_gpu_tools::*;
+// use rust_gpu_tools::*;
+use rust_gpu_tools::{cuda};
 use std::cmp;
 use std::time::Instant;
 use std::ffi::CStr;
@@ -46,7 +47,7 @@ where
             .ok_or(GPUError::Simple("No working GPUs found!"))?;
 
         let filename = CStr::from_bytes_with_nul(SOURCE_BIN).unwrap();
-        let cuda_device = device.cuda_device().ok_or(GpuToolsError::DeviceNotFound)?;
+        let cuda_device = device.cuda_device().ok_or(cuda::GPUError::DeviceNotFound)?;
         let program = cuda::Program::from_binary(cuda_device, &filename)?;
 
         // let src = sources::kernel::<E>(device.brand() == cuda::Brand::Nvidia);
@@ -54,9 +55,8 @@ where
         // let program = cuda::Program::from_cuda(&device, &src)?;
         let pq_buffer = program.create_buffer::<E::Fr>(1 << MAX_LOG2_RADIX >> 1)?;
         let omegas_buffer = program.create_buffer::<E::Fr>(LOG2_MAX_ELEMENTS)?;
-
         info!("FFT: 1 working device(s) selected.");
-        info!("FFT: Device 0: {}", program.device().name());
+        info!("FFT: Device 0: {}", program.device_name());
 
         Ok(FFTKernel {
             program,
@@ -93,12 +93,14 @@ where
             global_work_size as usize,
             local_work_size as usize,
         );
+        let local_buffer = &self.program.create_buffer::<E::Fr>(1 << deg)?;
+
         kernel
             .arg(src_buffer)
             .arg(dst_buffer)
             .arg(&self.pq_buffer)
             .arg(&self.omegas_buffer)
-            .arg(cuda::LocalBuffer::<E::Fr>::new(1 << deg))
+            .arg(local_buffer)
             .arg(&n)
             .arg(&log_p)
             .arg(&deg)
@@ -121,7 +123,7 @@ where
                 pq[i].mul_assign(&twiddle);
             }
         }
-        self.pq_buffer.write_from(0, &pq)?;
+        self.program.write_from_buffer(&mut self.pq_buffer, 0, &pq)?;
 
         // Precalculate [omega, omega^2, omega^4, omega^8, ..., omega^(2^31)]
         let mut omegas = vec![E::Fr::zero(); 32];
@@ -129,8 +131,7 @@ where
         for i in 1..LOG2_MAX_ELEMENTS {
             omegas[i] = omegas[i - 1].pow([2u64]);
         }
-        self.omegas_buffer.write_from(0, &omegas)?;
-
+        self.program.write_from_buffer(&mut self.omegas_buffer, 0, &omegas)?;
         Ok(())
     }
 
@@ -154,7 +155,7 @@ where
 
         let now = Instant::now();
         println!("fft.radix_fft: write_from start..");
-        src_buffer.write_from(0, &*a)?;
+        self.program.write_from_buffer(&mut src_buffer, 0, &*a)?;
         println!("fft.radix_fft: write_from end cost:{:?}", now.elapsed());
 
 
@@ -168,8 +169,7 @@ where
 
         let now = Instant::now();
         println!("fft.radix_fft: read_into start..");
-
-        src_buffer.read_into(0, a)?;
+        self.program.read_into_buffer(&src_buffer, 0, a)?;
         println!("fft.radix_fft: read_into end cost:{:?}", now.elapsed());
 
         println!("fft.radix_fft: ========== radix_fft end cost:{:?} ==========", start.elapsed());

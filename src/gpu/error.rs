@@ -7,7 +7,7 @@ pub enum GPUError {
     Simple(&'static str),
     #[cfg(feature = "gpu")]
     #[error("OpenCL Error: {0}")]
-    OpenCL(#[from] cuda::GPUError),
+    Cuda(#[from] cuda::GPUError),
     #[cfg(feature = "gpu")]
     #[error("GPU taken by a high priority process!")]
     GPUTaken,
@@ -16,6 +16,7 @@ pub enum GPUError {
     KernelUninitialized,
     #[error("GPU accelerator is disabled!")]
     GPUDisabled,
+
 }
 
 pub type GPUResult<T> = std::result::Result<T, GPUError>;
