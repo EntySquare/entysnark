@@ -7,6 +7,7 @@ use ff::Field;
 use log::info;
 use rust_gpu_tools::*;
 use std::cmp;
+use std::time::Instant;
 
 const LOG2_MAX_ELEMENTS: usize = 32; // At most 2^32 elements is supported.
 const MAX_LOG2_RADIX: u32 = 8; // Radix256
@@ -127,6 +128,10 @@ where
     /// * `omega` - Special value `omega` is used for FFT over finite-fields
     /// * `log_n` - Specifies log2 of number of elements
     pub fn radix_fft(&mut self, a: &mut [E::Fr], omega: &E::Fr, log_n: u32) -> GPUResult<()> {
+        let start = Instant::now();
+        println!("fft.radix_fft: ========== radix_fft start ==========");
+        let fr_size=std::mem::size_of::<E::Fr>();
+        println!("fft.radix_fft: data.len:{}, log_n:{},fr_size:{} ", a.len(),log_n,fr_size);
         let n = 1 << log_n;
         let mut src_buffer = self.program.create_buffer::<E::Fr>(n)?;
         let mut dst_buffer = self.program.create_buffer::<E::Fr>(n)?;
@@ -145,6 +150,7 @@ where
 
         src_buffer.read_into(0, a)?;
 
+        println!("fft.radix_fft: ========== radix_fft end cost:{:?} ==========", start.elapsed());
         Ok(())
     }
 }

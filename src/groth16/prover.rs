@@ -416,15 +416,19 @@ where
         None
     };
 
-    println!("prover.create_proof_batch_priority_inner: a_s start");
     let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
 
+    let now = Instant::now();
+    println!("prover.create_proof_batch_priority: a_s start...");
+    println!("prover.create_proof_batch_priority: provers length:{}", provers.len());
     let a_s = provers
         // 遍历
         .iter_mut()
         // 处理内存的基本功能。
         // 这个模块包含查询类型的大小和对齐、初始化和操作内存的函数。
         .map(|prover| {
+	    let par_now = Instant::now();
+            println!("prover.create_proof_batch_priority: a_s ifft start...");
             let mut a =
                 EvaluationDomain::from_coeffs(std::mem::replace(&mut prover.a, Vec::new()))?;
             let mut b =
@@ -449,6 +453,7 @@ where
             drop(c);
             a.divide_by_z_on_coset(&worker);
             a.icoset_fft(&worker, &mut fft_kern)?;
+            println!("prover.create_proof_batch_priority: a_s ifft end cost: {:?}",par_now.elapsed());
             let mut a = a.into_coeffs();
             let a_len = a.len() - 1;
             a.truncate(a_len);
@@ -456,14 +461,21 @@ where
             Ok(Arc::new(a.into_par_iter().map(|s| s.0.into_repr()).collect::<Vec<_>>()))
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+    println!("prover.create_proof_batch_priority: a_s time: {:?}", now.elapsed());
 
     drop(fft_kern);
     let mut multiexp_kern = Some(LockedMultiexpKernel::<E>::new(log_d, priority));
 
-    println!("prover.create_proof_batch_priority_inner: h_s start");
+    let now = Instant::now();
+    println!("prover.create_proof_batch_priority: h_s start...");
+    println!("prover.create_proof_batch_priority: a_s length:{}", a_s.len());
+    let mut times = 1;
     let h_s = a_s
         .into_iter()
         .map(|a| {
+            // let h = multiexp(
+            let par_now = Instant::now();
+            println!("===[{}]=== prover.create_proof_batch_priority: h_s multiexp start...",times);
             let h = multiexp_fulldensity(
                 &worker,
                 h_params.clone(),
@@ -471,14 +483,22 @@ where
                 a,
                 &mut multiexp_kern,
             );
+            println!("===[{}]=== prover.create_proof_batch_priority: h_s multiexp end cost: {:?}",times,par_now.elapsed());
+            times += 1;
             Ok(h)
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+    println!("prover.create_proof_batch_priority: h_s time: {:?}", now.elapsed());
 
-    println!("prover.create_proof_batch_priority_inner: l_s start");
+    let now = Instant::now();
+    println!("prover.create_proof_batch_priority: l_s start...");
+    println!("prover.create_proof_batch_priority: assignments length:{}", assignments.len());
+    let mut times = 1;
     let l_s = assignments
         .iter()
         .map(|(_,aux_assignment)| {
+            let par_now = Instant::now();
+            println!("===[{}]=== prover.create_proof_batch_priority: l_s multiexp start...",times);
             let l = multiexp_fulldensity(
                 &worker,
                 l_params.clone(),
@@ -486,11 +506,16 @@ where
                 aux_assignment.clone(),
                 &mut multiexp_kern,
             );
+            println!("===[{}]=== prover.create_proof_batch_priority: l_s multiexp end cost: {:?}",times,par_now.elapsed());
+            times += 1;
             Ok(l)
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+    println!("prover.create_proof_batch_priority: l_s time: {:?}", now.elapsed());
 
-    println!("prover.create_proof_batch_priority_inner: inputs start");
+    let now = Instant::now();
+    println!("prover.create_proof_batch_priority: input start...");
+    let mut times = 1;
     let inputs = provers
         .into_iter()
         .zip(assignments.into_iter())
@@ -498,6 +523,9 @@ where
             let b_input_density = Arc::new(prover.b_input_density);
             let b_aux_density = Arc::new(prover.b_aux_density);
 
+            let par_start = Instant::now();
+            println!("===[{}]=== prover.create_proof_batch_priority: input piece start...", times);
+            // let a_inputs = multiexp(
             let a_inputs = multiexp_fulldensity(
                 &worker,
                 a_inputs_source.clone(),
@@ -577,6 +605,8 @@ where
                 b_g2_aux_n,
                 &mut multiexp_kern,
             );
+            println!("===[{}]=== prover.create_proof_batch_priority: input piece end cost: {:?}", times,par_start.elapsed());
+            times += 1;
 
             Ok((
                 a_inputs,
@@ -588,6 +618,9 @@ where
             ))
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+
+    println!("prover.create_proof_batch_priority: input time: {:?}", now.elapsed());
+
     drop(multiexp_kern);
 
     println!("prover.create_proof_batch_priority_inner: proofs start");
@@ -653,8 +686,8 @@ where
         drop(prio_lock);
     }
 
-    let proof_time = start.elapsed();
-    println!("prover.create_proof_batch_priority_inner: prover time: {:?}", proof_time);
+     let proof_time = start.elapsed();
+    println!("prover.create_proof_batch_priority: prover time: {:?}", proof_time);
 
     Ok(proofs)
 }
