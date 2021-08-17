@@ -450,15 +450,14 @@ where
             for ((pa,pb),pc) in prover.a.chunks(chunk_size)
                 .zip(prover.b.chunks(chunk_size))
                 .zip(prover.c.chunks(chunk_size)){
+                let par_now = Instant::now();
+                println!("prover.create_proof_batch_priority: a_s ifft start...");
                 let mut a =
                     EvaluationDomain::from_coeffs(std::mem::replace(&mut Vec::from(pa), Vec::new()))?;
                 let mut b =
                     EvaluationDomain::from_coeffs(std::mem::replace(&mut Vec::from(pb), Vec::new()))?;
                 let mut c =
                     EvaluationDomain::from_coeffs(std::mem::replace(&mut Vec::from(pc), Vec::new()))?;
-
-                let par_now = Instant::now();
-                println!("prover.create_proof_batch_priority: a_s ifft start...");
                 a.ifft(&worker, &mut fft_kern)?;
                 a.coset_fft(&worker, &mut fft_kern)?;
                 b.ifft(&worker, &mut fft_kern)?;
