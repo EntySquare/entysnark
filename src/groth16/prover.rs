@@ -445,38 +445,44 @@ where
     let a_s = provers
         .iter_mut()
         .map(|prover| {
-            let mut a =
-                EvaluationDomain::from_coeffs(std::mem::replace(&mut prover.a, Vec::new()))?;
-            let mut b =
-                EvaluationDomain::from_coeffs(std::mem::replace(&mut prover.b, Vec::new()))?;
-            let mut c =
-                EvaluationDomain::from_coeffs(std::mem::replace(&mut prover.c, Vec::new()))?;
+            let chunk_size = 1<<26;
+            let mut result = Vec::new();
+            for ((pa,pb),pc) in prover.a.chunks(chunk_size)
+                .zip(prover.b.chunks(chunk_size))
+                .zip(prover.c.chunks(chunk_size)){
+                let par_now = Instant::now();
+                println!("prover.create_proof_batch_priority: a_s ifft start...");
+                let mut a =
+                    EvaluationDomain::from_coeffs(std::mem::replace(&mut Vec::from(pa), Vec::new()))?;
+                let mut b =
+                    EvaluationDomain::from_coeffs(std::mem::replace(&mut Vec::from(pb), Vec::new()))?;
+                let mut c =
+                    EvaluationDomain::from_coeffs(std::mem::replace(&mut Vec::from(pc), Vec::new()))?;
+                a.ifft(&worker, &mut fft_kern)?;
+                a.coset_fft(&worker, &mut fft_kern)?;
+                b.ifft(&worker, &mut fft_kern)?;
+                b.coset_fft(&worker, &mut fft_kern)?;
+                c.ifft(&worker, &mut fft_kern)?;
+                c.coset_fft(&worker, &mut fft_kern)?;
 
-            let par_now = Instant::now();
-            println!("===[{}]=== prover.create_proof_batch_priority: a_s ifft start...",times);
-            a.ifft(&worker, &mut fft_kern)?;
-            a.coset_fft(&worker, &mut fft_kern)?;
-            b.ifft(&worker, &mut fft_kern)?;
-            b.coset_fft(&worker, &mut fft_kern)?;
-            c.ifft(&worker, &mut fft_kern)?;
-            c.coset_fft(&worker, &mut fft_kern)?;
-
-            a.mul_assign(&worker, &b);
-            drop(b);
-            a.sub_assign(&worker, &c);
-            drop(c);
-            a.divide_by_z_on_coset(&worker);
-            a.icoset_fft(&worker, &mut fft_kern)?;
-            println!("===[{}]=== prover.create_proof_batch_priority: a_s ifft end cost: {:?}",times,par_now.elapsed());
-            let mut a = a.into_coeffs();
-            let a_len = a.len() - 1;
-            a.truncate(a_len);
+                a.mul_assign(&worker, &b);
+                drop(b);
+                a.sub_assign(&worker, &c);
+                drop(c);
+                a.divide_by_z_on_coset(&worker);
+                a.icoset_fft(&worker, &mut fft_kern)?;
+                println!("prover.create_proof_batch_priority: a_s ifft end cost: {:?}",par_now.elapsed());
+                let mut a = a.into_coeffs();
+                let a_len = a.len() - 1;
+                a.truncate(a_len);
+                result.append(&mut a.into_par_iter().map(|s| s.0.into_repr()).collect::<Vec<_>>());
+            }
 
             // Ok(Arc::new(
             //     a.into_iter().map(|s| s.0.into_repr()).collect::<Vec<_>>(),
             // ))
-            times += 1;
-            Ok(Arc::new(a.into_par_iter().map(|s| s.0.into_repr()).collect::<Vec<_>>()))
+
+            Ok(Arc::new(result))
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
     println!("prover.create_proof_batch_priority: a_s time: {:?}", now.elapsed());
