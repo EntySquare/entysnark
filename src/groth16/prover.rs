@@ -459,6 +459,8 @@ where
                 let mut c =
                     EvaluationDomain::from_coeffs(std::mem::replace(&mut Vec::from(pc), Vec::new()))?;
 
+                let par_now = Instant::now();
+                println!("prover.create_proof_batch_priority: a_s ifft start...");
                 a.ifft(&worker, &mut fft_kern)?;
                 a.coset_fft(&worker, &mut fft_kern)?;
                 b.ifft(&worker, &mut fft_kern)?;
@@ -472,6 +474,7 @@ where
                 drop(c);
                 a.divide_by_z_on_coset(&worker);
                 a.icoset_fft(&worker, &mut fft_kern)?;
+                println!("prover.create_proof_batch_priority: a_s ifft end cost: {:?}",par_now.elapsed());
                 let mut a = a.into_coeffs();
                 let a_len = a.len() - 1;
                 a.truncate(a_len);
