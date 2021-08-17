@@ -151,7 +151,7 @@ where
         // let num_groups = calc_num_groups(self.core_count, num_windows);
         let num_groups =  2 * self.core_count / num_windows;
         let bucket_len = 1 << window_size;
-         println!("[{} - {}] SingleMultiexpKernel.multiexp:  exp_bits:{},window_size:{},num_windows:{},num_groups:{},bucket_len:{}",bus_id, times, exp_bits,window_size,num_windows,num_groups,bucket_len);
+        // println!("[{} - {}] SingleMultiexpKernel.multiexp:  exp_bits:{},window_size:{},num_windows:{},num_groups:{},bucket_len:{}",bus_id, times, exp_bits,window_size,num_windows,num_groups,bucket_len);
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
@@ -340,21 +340,21 @@ where
                 let start = Instant::now();
                 println!("main MultiexpKernel.multiexp: ================================ gpu multiexp start ================================");
                 let results = if n > 0 {
-                    println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
+                    // println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                     bases
                         .par_chunks(chunk_size)
                         .zip(exps.par_chunks(chunk_size))
                         .zip(self.kernels.par_iter_mut())
                         .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
                             let bus_id = kern.program.device().bus_id().unwrap();
-                            println!(
-                                "[{}] Multiexp: Device {}: {} core count:{} (Chunk-size: {})",
-                                bus_id,
-                                bus_id, // i, // Modified by long 20210312
-                                kern.program.device().name(),
-                                kern.core_count,
-                                kern.n
-                            );
+                            // println!(
+                            //     "[{}] Multiexp: Device {}: {} core count:{} (Chunk-size: {})",
+                            //     bus_id,
+                            //     bus_id, // i, // Modified by long 20210312
+                            //     kern.program.device().name(),
+                            //     kern.core_count,
+                            //     kern.n
+                            // );
                            // println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                             let mut acc = <G as CurveAffine>::Projective::zero();
                             // let single_chunk_size = 33554466; //理论最佳 2台gpu 134217727/4 = 33554431.75  33554466  1台gpu 134217727/3=44739242.333333336 44739288
@@ -370,10 +370,10 @@ where
                             // println!("[{}] MultiexpKernel.multiexp:  chunks bases.len():{} , exps.len():{} , chunk_size:{}", bus_id,bases.len(), exps.len(), single_chunk_size);
                             let mut times :u32 = 1;
                             for (bases, exps) in bases.chunks(single_chunk_size).zip(exps.chunks(single_chunk_size)) {
-                                let now = Instant::now();
-                                println!("[{} - {}] MultiexpKernel.multiexp: ===========> Single multiexp start <=========== ",bus_id,times);
+                                // let now = Instant::now();
+                                // println!("[{} - {}] MultiexpKernel.multiexp: ===========> Single multiexp start <=========== ",bus_id,times);
                                 let result = kern.multiexp(bases, exps, bases.len(), set_window_size,bus_id,times)?;
-                                println!("[{} - {}] MultiexpKernel.multiexp: ===========> Single multiexp cost:{:?} <=========== ",bus_id,times,now.elapsed());
+                                // println!("[{} - {}] MultiexpKernel.multiexp: ===========> Single multiexp cost:{:?} <=========== ",bus_id,times,now.elapsed());
                                 times += 1;
                                 acc.add_assign(&result);
                             }
