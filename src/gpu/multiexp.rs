@@ -235,10 +235,9 @@ where
 {
     pub fn create(priority: bool) -> GPUResult<MultiexpKernel<E>> {
         let lock = locks::GPULock::lock();
+        let lock_id = lock.id();
 
         let devices = opencl::Device::all();
-        let mut index = 0;
-        let len = devices.len();
         let kernels: Vec<_> = devices
             .into_iter()
             .map(|d| (d, SingleMultiexpKernel::<E>::create(d.clone(), priority)))
@@ -250,19 +249,11 @@ where
                         e
                     );
                 }
-
-                if len > 1 {
-                    // 当有两台GPU时，只用一个GPU
-                    if index == 1 {
-                        index += 1;
-                        res.ok()
-                    }else{
-                        index += 1;
-                        None
-                    }
-                }else{
-                    res.ok()
-                }
+                 if device.bus_id() == lock_id {
+                     res.ok()
+                 }else{
+                     None
+                 }
                 // 多个GPU
                 // res.ok()
             })
