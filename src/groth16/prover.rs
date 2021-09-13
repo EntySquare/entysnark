@@ -274,7 +274,7 @@ where
     C: Circuit<E> + Send,
 {
     info!("Bellperson {} is being used!", BELLMAN_VERSION);
-
+    println!("prover.create_proof_batch_priority: priority:{}",priority);
     // Preparing things for the proofs is done a lot in parallel with the help of Rayon. Make
     // sure that those things run on the correct thread pool.
     let (start, mut provers, input_assignments, aux_assignments) =
