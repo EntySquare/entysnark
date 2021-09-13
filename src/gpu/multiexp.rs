@@ -237,6 +237,7 @@ where
         let lock = locks::GPULock::lock();
 
         let devices = opencl::Device::all();
+        let mut index = 0;
 
         let kernels: Vec<_> = devices
             .into_iter()
@@ -249,7 +250,16 @@ where
                         e
                     );
                 }
-                res.ok()
+                // 只用一个GPU
+                if index == 1{
+                    index += 1;
+                    res.ok()
+                }else{
+                    index += 1;
+                    None
+                }
+                // 多个GPU
+                // res.ok()
             })
             .collect();
 
