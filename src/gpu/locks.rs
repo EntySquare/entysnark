@@ -30,11 +30,11 @@ impl GPULock {
         self.1
     }
     pub fn lock() -> GPULock {
-        let glock = gpu_lock_path(GPU_LOCK_NAME, 0);
-        let glock = File::create(&glock)
-            .unwrap_or_else(|_| panic!("Cannot create GPU glock file at {:?}", &glock));
+        // let glock = gpu_lock_path(GPU_LOCK_NAME, 0);
+        // let glock = File::create(&glock)
+        //     .unwrap_or_else(|_| panic!("Cannot create GPU glock file at {:?}", &glock));
         loop {
-            glock.lock_exclusive().unwrap();
+            // glock.lock_exclusive().unwrap();
             let devs = opencl::Device::all();
             for dev in devs {
                 let id = dev.bus_id().unwrap();
@@ -45,7 +45,7 @@ impl GPULock {
                     return GPULock(lock, id);
                 }
             }
-            glock.unlock().unwrap();
+            // glock.unlock().unwrap();
             thread::sleep(Duration::from_secs(3));
         }
     }
