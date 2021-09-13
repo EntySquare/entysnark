@@ -111,7 +111,6 @@ where
         let max_n = calc_chunk_size::<E>(mem, core_count);
         let best_n = calc_best_chunk_size(MAX_WINDOW_SIZE, core_count, exp_bits);
         let n = std::cmp::min(max_n, best_n);
-        println!("SingleMultiexpKernel.create:  \n exp_bits:{},\n core_count:{},\n mem:{},\n max_n:{},\n best_n:{}", exp_bits,core_count,mem,max_n,best_n);
 
         Ok(SingleMultiexpKernel {
             program: opencl::Program::from_opencl(d, &src)?,
@@ -140,7 +139,7 @@ where
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         let num_groups = calc_num_groups(self.core_count, num_windows);
         let bucket_len = 1 << window_size;
-        println!("SingleMultiexpKernel.multiexp: \n exp_bits:{},\n window_size:{},\n num_windows:{},\n num_groups:{},\n bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
+        println!("SingleMultiexpKernel.multiexp:  exp_bits:{}, window_size:{}, num_windows:{}, num_groups:{}, bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
 
         let size1 = std::mem::size_of::<G>();
         let size2 = std::mem::size_of::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>();
@@ -149,8 +148,7 @@ where
         let mem2 = size2 * n;
         let mem3 = size3 * 2 * self.core_count * bucket_len;
         let mem4 = size3 * 2 * self.core_count;
-        println!("SingleMultiexpKernel.multiexp: \n size1:{},\n size2:{},\n size3:{},\n mem1:{},\n mem2:{},\n mem3:{},\n mem4:{}", size1,size2,size3,mem1,mem2,mem3,mem4);
-        println!("ZQ: GPU mem need: {}Mbyte", (mem1 + mem2 + mem3 + mem4)/(1024*1024));
+        println!("SingleMultiexpKernel.multiexp: {}Mbyte", (mem1 + mem2 + mem3 + mem4)/(1024*1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
@@ -291,7 +289,7 @@ where
         for (i, k) in self.kernels.iter().enumerate() {
             println!(
                 "Multiexp: Device {}: {} (Chunk-size: {})",
-                i,
+                k.program.device().bus_id().unwrap(),
                 k.program.device().name(),
                 k.n
             );
@@ -307,22 +305,18 @@ where
         let (cpu_exps, exps) = exps.split_at(cpu_n);
 
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
-        println!("MultiexpKernel.multiexp: \n exp_num:{},\n num_devices:{},\n chunk_size:{}",n,num_devices, chunk_size);
 
         let mut acc = <G as CurveAffine>::Projective::zero();
 
         let results = crate::multicore::THREAD_POOL.install(|| {
             if n > 0 {
-                println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{}",bases.len(),exps.len());
                 bases
                 .par_chunks(chunk_size)
                 .zip(exps.par_chunks(chunk_size))
                 .zip(self.kernels.par_iter_mut())
                 .map(|((bases, exps), kern)| -> Result<<G as CurveAffine>::Projective, GPUError> {
-                                println!("MultiexpKernel.multiexp: \n par_chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                     let mut acc = <G as CurveAffine>::Projective::zero();
                     for (bases, exps) in bases.chunks(kern.n).zip(exps.chunks(kern.n)) {
-                        println!("MultiexpKernel.multiexp: \n chunks bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),kern.n);
                         let now = Instant::now();
                         match kern.multiexp(bases, exps, bases.len()) {
                             Ok(result) => {
