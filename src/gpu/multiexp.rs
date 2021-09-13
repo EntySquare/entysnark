@@ -238,7 +238,7 @@ where
 
         let devices = opencl::Device::all();
         let mut index = 0;
-
+        let len = devices.len();
         let kernels: Vec<_> = devices
             .into_iter()
             .map(|d| (d, SingleMultiexpKernel::<E>::create(d.clone(), priority)))
@@ -250,13 +250,18 @@ where
                         e
                     );
                 }
-                // 只用一个GPU
-                if index == 1{
-                    index += 1;
-                    res.ok()
+
+                if len > 1 {
+                    // 当有两台GPU时，只用一个GPU
+                    if index == 1 {
+                        index += 1;
+                        res.ok()
+                    }else{
+                        index += 1;
+                        None
+                    }
                 }else{
-                    index += 1;
-                    None
+                    res.ok()
                 }
                 // 多个GPU
                 // res.ok()
