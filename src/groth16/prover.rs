@@ -312,6 +312,8 @@ where
 
     let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
 
+    let now = Instant::now();
+    println!("create_proof_batch_priority a_s begin");
     let a_s = provers
         .iter_mut()
         .map(|prover| {
@@ -346,8 +348,11 @@ where
         .collect::<Result<Vec<_>, SynthesisError>>()?;
 
     drop(fft_kern);
-    let mut multiexp_kern = Some(LockedMultiexpKernel::<E>::new(log_d, priority));
+    println!("create_proof_batch_priority a_s end time: {:?}", now.elapsed());
 
+    let mut multiexp_kern = Some(LockedMultiexpKernel::<E>::new(log_d, priority));
+    let now = Instant::now();
+    println!("create_proof_batch_priority h_s begin");
     let h_s = a_s
         .into_iter()
         .map(|a| {
@@ -361,7 +366,10 @@ where
             Ok(h)
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+    println!("create_proof_batch_priority h_s end time: {:?}", now.elapsed());
 
+    let now = Instant::now();
+    println!("create_proof_batch_priority l_s begin");
     let l_s = aux_assignments
         .iter()
         .map(|aux_assignment| {
@@ -375,7 +383,10 @@ where
             Ok(l)
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+    println!("create_proof_batch_priority l_s end time: {:?}", now.elapsed());
 
+    let now = Instant::now();
+    println!("create_proof_batch_priority input begin");
     let inputs = provers
         .into_iter()
         .zip(input_assignments.iter())
@@ -454,8 +465,11 @@ where
             ))
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+    println!("create_proof_batch_priority input end time: {:?}", now.elapsed());
     drop(multiexp_kern);
 
+    let now = Instant::now();
+    println!("create_proof_batch_priority proofs begin");
     let proofs = h_s
         .into_iter()
         .zip(l_s.into_iter())
@@ -511,7 +525,7 @@ where
             },
         )
         .collect::<Result<Vec<_>, SynthesisError>>()?;
-
+    println!("create_proof_batch_priority proofs end time: {:?}", now.elapsed());
     // #[cfg(feature = "gpu")]
     // {
     //     trace!("dropping priority lock");
