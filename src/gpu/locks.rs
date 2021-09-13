@@ -36,15 +36,21 @@ impl GPULock {
         loop {
             // glock.lock_exclusive().unwrap();
             let devs = opencl::Device::all();
+            for dev in &devs {
+                println!(
+                    "Device {}-{}: {:?} ",
+                    dev.name(),
+                    dev.bus_id().unwrap(),
+                    dev.brand()
+                );
+            }
             for dev in devs {
                 println!(
                     "try get Device {}-{}: {:?} ",
                     dev.name(),
                     dev.bus_id().unwrap(),
                     dev.brand()
-                )
-            }
-            for dev in devs {
+                );
                 let id = dev.bus_id().unwrap();
                 let lock = gpu_lock_path(GPU_LOCK_NAME, id);
                 let lock = File::create(&lock)
