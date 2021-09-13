@@ -131,9 +131,9 @@ where
     where
         G: CurveAffine,
     {
-        if locks::PriorityLock::should_break(self.priority) {
-            return Err(GPUError::GPUTaken);
-        }
+        // if locks::PriorityLock::should_break(self.priority) {
+        //     return Err(GPUError::GPUTaken);
+        // }
 
         let exp_bits = exp_size::<E>() * 8;
         let window_size = calc_window_size(n as usize, exp_bits, self.core_count);

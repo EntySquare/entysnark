@@ -70,9 +70,9 @@ where
         deg: u32,
         max_deg: u32,
     ) -> GPUResult<()> {
-        if locks::PriorityLock::should_break(self.priority) {
-            return Err(GPUError::GPUTaken);
-        }
+        // if locks::PriorityLock::should_break(self.priority) {
+        //     return Err(GPUError::GPUTaken);
+        // }
 
         let n = 1u32 << log_n;
         let local_work_size = 1 << cmp::min(deg - 1, MAX_LOG2_LOCAL_WORK_SIZE);

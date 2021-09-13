@@ -301,14 +301,14 @@ where
     while (1 << log_d) < n {
         log_d += 1;
     }
-
-    #[cfg(feature = "gpu")]
-    let prio_lock = if priority {
-        trace!("acquiring priority lock");
-        Some(PriorityLock::lock())
-    } else {
-        None
-    };
+    // remove priority lock  by wangxp 2021-09-14 , cause we only use 1 gpu, and handle it in GPULock
+    // #[cfg(feature = "gpu")]
+    // let prio_lock = if priority {
+    //     trace!("acquiring priority lock");
+    //     Some(PriorityLock::lock())
+    // } else {
+    //     None
+    // };
 
     let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
 
@@ -512,11 +512,11 @@ where
         )
         .collect::<Result<Vec<_>, SynthesisError>>()?;
 
-    #[cfg(feature = "gpu")]
-    {
-        trace!("dropping priority lock");
-        drop(prio_lock);
-    }
+    // #[cfg(feature = "gpu")]
+    // {
+    //     trace!("dropping priority lock");
+    //     drop(prio_lock);
+    // }
 
     let proof_time = start.elapsed();
     info!("prover time: {:?}", proof_time);
