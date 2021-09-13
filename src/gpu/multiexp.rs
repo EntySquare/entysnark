@@ -139,17 +139,17 @@ where
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         let num_groups = calc_num_groups(self.core_count, num_windows);
         let bucket_len = 1 << window_size;
-        println!("SingleMultiexpKernel.multiexp:  exp_bits:{}, window_size:{}, num_windows:{}, num_groups:{}, bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
+        // println!("SingleMultiexpKernel.multiexp:  exp_bits:{}, window_size:{}, num_windows:{}, num_groups:{}, bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
 
-        let size1 = std::mem::size_of::<G>();
-        let size2 = std::mem::size_of::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>();
-        let size3 = std::mem::size_of::<<G as CurveAffine>::Projective>();
-        let mem1 = size1 * n;
-        let mem2 = size2 * n;
-        let mem3 = size3 * 2 * self.core_count * bucket_len;
-        let mem4 = size3 * 2 * self.core_count;
-        // println!("SingleMultiexpKernel.multiexp:  size1:{}, size2:{}, size3:{}, mem1:{}, mem2:{}, mem3:{}, mem4:{}", size1,size2,size3,mem1,mem2,mem3,mem4);
-        println!("SingleMultiexpKernel.multiexp: GPU mem need: {}Mbyte", (mem1 + mem2 + mem3 + mem4)/(1024*1024));
+        // let size1 = std::mem::size_of::<G>();
+        // let size2 = std::mem::size_of::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>();
+        // let size3 = std::mem::size_of::<<G as CurveAffine>::Projective>();
+        // let mem1 = size1 * n;
+        // let mem2 = size2 * n;
+        // let mem3 = size3 * 2 * self.core_count * bucket_len;
+        // let mem4 = size3 * 2 * self.core_count;
+        // // println!("SingleMultiexpKernel.multiexp:  size1:{}, size2:{}, size3:{}, mem1:{}, mem2:{}, mem3:{}, mem4:{}", size1,size2,size3,mem1,mem2,mem3,mem4);
+        // println!("SingleMultiexpKernel.multiexp: GPU mem need: {}Mbyte", (mem1 + mem2 + mem3 + mem4)/(1024*1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
