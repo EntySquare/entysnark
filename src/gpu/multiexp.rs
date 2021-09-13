@@ -249,7 +249,7 @@ where
                         e
                     );
                 }
-                 if device.bus_id() == lock_id {
+                 if device.bus_id().unwrap() == lock_id {
                      res.ok()
                  }else{
                      None
