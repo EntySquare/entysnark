@@ -55,9 +55,9 @@ impl GPULock {
             }
             for (i,dev) in devs.iter().enumerate() {
                 //测试用 勿提交，只用一台GPU
-                // if i > 0 {
-                //     continue
-                // }
+                if i > 0 {
+                    continue
+                }
                 println!(
                     "try get Device {}-{}: {:?} ",
                     dev.name(),
