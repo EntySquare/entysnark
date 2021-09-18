@@ -436,13 +436,18 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
     } else {
         None
     };
-
+    let now = Instant::now();
+    let mut times = 0;
+    println!("prover.create_proof_batch_priority: get proofs begin");
     let proofs = provers
         .into_iter()
         .zip(assignments.into_iter())
         .zip(r_s.into_iter())
         .zip(s_s.into_iter())
         .map(|(((mut prover, (input_assignment, aux_assignment)), r), s)| {
+            times = times + 1;
+            let par = Instant::now();
+            println!("[{}]======= prover.proofs: get fft a_s begin",times);
             let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
             let mut a =
                 EvaluationDomain::from_coeffs(std::mem::replace(&mut prover.a, Vec::new()))?;
@@ -470,8 +475,11 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
 
             let a_s_inner = Arc::new(a.into_par_iter().map(|s| s.0.into_repr()).collect::<Vec<_>>());
             drop(fft_kern);
+            println!("[{}]======= prover.proofs: get fft a_s end: {:?}",times, par.elapsed());
 
             let mut multiexp_kern = Some(LockedMultiexpKernel::<E>::new(log_d, priority));
+            let par = Instant::now();
+            println!("[{}]======= prover.proofs: get multiexp h_s begin",times);
             let h = multiexp_fulldensity(
                 &worker,
                 h_params.clone(), // params.get_h(a.len())?,
@@ -479,6 +487,11 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
                 a_s_inner,
                 &mut multiexp_kern,
             );
+            println!("[{}]======= prover.proofs: get multiexp h_s end: {:?}",times, par.elapsed());
+
+            let par = Instant::now();
+            println!("[{}]======= prover.proofs: get multiexp l_s begin",times);
+
             let l = multiexp_fulldensity(
                 &worker,
                 l_params.clone(), // params.get_l(aux_assignment.len())?,
@@ -486,6 +499,10 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
                 aux_assignment.clone(),
                 &mut multiexp_kern,
             );
+            println!("[{}]======= prover.proofs: get multiexp l_s end: {:?}",times, par.elapsed());
+
+            let par = Instant::now();
+            println!("[{}]======= prover.proofs: get multiexp input begin",times);
 
             let b_input_density = Arc::new(prover.b_input_density);
             let b_aux_density = Arc::new(prover.b_aux_density);
@@ -574,6 +591,7 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
                 b_g2_aux_n,
                 &mut multiexp_kern,
             );
+            println!("[{}]======= prover.proofs: get multiexp input end: {:?}",times, par.elapsed());
             drop(multiexp_kern);
 
             if vk.delta_g1.is_zero() || vk.delta_g2.is_zero() {
@@ -619,6 +637,7 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
             })
         })
         .collect::<Result<Vec<_>, SynthesisError>>()?;
+    println!("prover.create_proof_batch_priority: get proofs end time: {:?}", now.elapsed());
 
     #[cfg(feature = "gpu")]
         {
