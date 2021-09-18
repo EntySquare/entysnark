@@ -248,10 +248,9 @@ where
 {
     pub fn create(priority: bool) -> GPUResult<MultiexpKernel<E>> {
         let lock = locks::GPULock::lock();
+        let lock_id = lock.id();
 
         let devices = opencl::Device::all();
-        let mut index = 0;
-
         let kernels: Vec<_> = devices
             .into_iter()
             .map(|d| (d, SingleMultiexpKernel::<E>::create(d.clone(), priority)))
@@ -263,16 +262,13 @@ where
                         e
                     );
                 }
-                // 只用一个GPU
-                // if index == 1{
-                //     index += 1;
-                //     res.ok()
-                // }else{
-                //     index += 1;
-                //     None
-                // }
+                 if device.bus_id().unwrap() == lock_id {
+                     res.ok()
+                 }else{
+                     None
+                 }
                 // 多个GPU
-                res.ok()
+                // res.ok()
             })
             .collect();
 
@@ -287,7 +283,7 @@ where
         for (_, k) in kernels.iter().enumerate() {
             info!(
                 "Multiexp: Device {}: {} (Chunk-size: {})",
-                k.program.device().bus_id().unwrap(), // i, // Modified by long 20210312
+                k.program.device().bus_id().unwrap(), // i,
                 k.program.device().name(),
                 k.n
             );
@@ -312,6 +308,14 @@ where
     {
 
         let num_devices = self.kernels.len();
+        for (i, k) in self.kernels.iter().enumerate() {
+            println!(
+                "Multiexp: Device {}: {} (Chunk-size: {})",
+                k.program.device().bus_id().unwrap(),
+                k.program.device().name(),
+                k.n
+            );
+        }
         // Bases are skipped by `self.1` elements, when converted from (Arc<Vec<G>>, usize) to Source
         // https://github.com/zkcrypto/bellman/blob/10c5010fd9c2ca69442dc9775ea271e286e776d8/src/multiexp.rs#L38
         let bases = &bases[skip..(skip + n)];
