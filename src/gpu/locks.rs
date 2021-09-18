@@ -17,11 +17,13 @@ use super::multiexp::MultiexpKernel;
 
 const GPU_LOCK_NAME: &str = "bellman.gpu.lock";
 const PRIORITY_LOCK_NAME: &str = "bellman.priority.lock";
+
 fn tmp_path(filename: &str) -> PathBuf {
     let mut p = std::env::temp_dir();
     p.push(filename);
     p
 }
+
 fn gpu_lock_path(filename: &str, bus_id: u32) -> PathBuf {
     let mut name = String::from(filename);
     name.push('.');
@@ -34,6 +36,7 @@ fn gpu_lock_path(filename: &str, bus_id: u32) -> PathBuf {
 /// `GPULock` prevents two kernel objects to be instantiated simultaneously.
 #[derive(Debug)]
 pub struct GPULock(File, u32);
+
 impl GPULock {
     pub fn id(&self) -> u32 {
         self.1
@@ -44,31 +47,22 @@ impl GPULock {
         //     .unwrap_or_else(|_| panic!("Cannot create GPU glock file at {:?}", &glock));
         let devs = opencl::Device::all();
         for dev in &devs {
-            println!(
-                "Device {}-{}: {:?} ",
-                dev.name(),
-                dev.bus_id().unwrap(),
-                dev.brand()
-            );
+            println!("----- Device {}-{}: {:?} ", dev.name(), dev.bus_id().unwrap(), dev.brand());
         }
         loop {
             // glock.lock_exclusive().unwrap();
-            for (i,dev) in devs.iter().enumerate() {
+            for (i, dev) in devs.iter().enumerate() {
                 //测试用 勿提交，只用一台GPU
                 if i > 0 {
-                    continue
+                    continue;
                 }
-                println!(
-                    "try get Device {}-{}: {:?} ",
-                    dev.name(),
-                    dev.bus_id().unwrap(),
-                    dev.brand()
-                );
+                println!("----- try get Device {}-{}: {:?} ", dev.name(), dev.bus_id().unwrap(), dev.brand());
                 let id = dev.bus_id().unwrap();
                 let lock = gpu_lock_path(GPU_LOCK_NAME, id);
                 let lock = File::create(&lock)
                     .unwrap_or_else(|_| panic!("Cannot create GPU lock file at {:?}", &lock));
                 if lock.try_lock_exclusive().is_ok() {
+                    println!("----- success get Device {}-{}: {:?} ", dev.name(), dev.bus_id().unwrap(), dev.brand());
                     return GPULock(lock, id);
                 }
             }
@@ -103,6 +97,7 @@ impl GPULock {
         }
     }
 }
+
 impl Drop for GPULock {
     fn drop(&mut self) {
         self.0.unlock().unwrap();
@@ -116,6 +111,7 @@ impl Drop for GPULock {
 /// Only one process can have the `PriorityLock` at a time.
 #[derive(Debug)]
 pub struct PriorityLock(File);
+
 impl PriorityLock {
     pub fn lock() -> PriorityLock {
         let priority_lock_file = tmp_path(PRIORITY_LOCK_NAME);
@@ -141,11 +137,12 @@ impl PriorityLock {
     pub fn should_break(priority: bool) -> bool {
         !priority
             && File::create(tmp_path(PRIORITY_LOCK_NAME))
-                .unwrap()
-                .try_lock_exclusive()
-                .is_err()
+            .unwrap()
+            .try_lock_exclusive()
+            .is_err()
     }
 }
+
 impl Drop for PriorityLock {
     fn drop(&mut self) {
         self.0.unlock().unwrap();

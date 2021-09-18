@@ -131,9 +131,9 @@ where
     /// * `log_n` - Specifies log2 of number of elements
     pub fn radix_fft(&mut self, a: &mut [E::Fr], omega: &E::Fr, log_n: u32) -> GPUResult<()> {
         let start = Instant::now();
-        println!("==========fft.radix_fft start..");
+        println!("========== radix_fft start..");
         let fr_size=std::mem::size_of::<E::Fr>();
-        println!("==========fft.radix_fft: data.len:{}, log_n:{},fr_size:{} ", a.len(),log_n,fr_size);
+        println!("========== data.len:{}, log_n:{},fr_size:{} ", a.len(),log_n,fr_size);
         let n = 1 << log_n;
         // let now = Instant::now();
         // println!("fft.radix_fft: create_buffer start..");
@@ -164,7 +164,7 @@ where
         src_buffer.read_into(0, a)?;
         // println!("fft.radix_fft: read_into end cost:{:?}", now.elapsed());
 
-        println!("==========fft.radix_fft end cost:{:?} ", start.elapsed());
+        println!("========== fft.radix_fft end cost:{:?} ", start.elapsed());
         Ok(())
     }
 }

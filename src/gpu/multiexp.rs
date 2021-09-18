@@ -151,7 +151,7 @@ where
         // let num_groups = calc_num_groups(self.core_count, num_windows);
         let num_groups =  2 * self.core_count / num_windows;
         let bucket_len = 1 << window_size;
-         println!("[{} - {}]============= SingleMultiexpKernel.multiexp:  exp_bits:{},window_size:{},num_windows:{},num_groups:{},bucket_len:{}",bus_id, times, exp_bits,window_size,num_windows,num_groups,bucket_len);
+         println!("============= [{} - {}] SingleMultiexpKernel.multiexp:  exp_bits:{},window_size:{},num_windows:{},num_groups:{},bucket_len:{}",bus_id, times, exp_bits,window_size,num_windows,num_groups,bucket_len);
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
@@ -164,7 +164,7 @@ where
         //2 * self.core_count =`num_groups` * `num_windows`
         let mem3 = size3 * num_groups * num_windows * bucket_len;
         let mem4 = size3 * num_groups * num_windows ;
-        println!("[{} - {}]============= SingleMultiexpKernel.multiexp: CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",bus_id, times, size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
+        println!("============= [{} - {}] SingleMultiexpKernel.multiexp: CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",bus_id, times, size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
@@ -308,14 +308,6 @@ where
     {
 
         let num_devices = self.kernels.len();
-        for (i, k) in self.kernels.iter().enumerate() {
-            println!(
-                "==========Multiexp: Device {}: {} (Chunk-size: {})",
-                k.program.device().bus_id().unwrap(),
-                k.program.device().name(),
-                k.n
-            );
-        }
         // Bases are skipped by `self.1` elements, when converted from (Arc<Vec<G>>, usize) to Source
         // https://github.com/zkcrypto/bellman/blob/10c5010fd9c2ca69442dc9775ea271e286e776d8/src/multiexp.rs#L38
         let bases = &bases[skip..(skip + n)];
@@ -342,7 +334,7 @@ where
             // GPU
             scoped.execute(move || {
                 let start = Instant::now();
-                println!("==========gpu multiexp start");
+                println!("========== gpu multiexp start");
                 let results = if n > 0 {
                    // println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                     bases
@@ -387,14 +379,14 @@ where
                 } else {
                     Vec::new()
                 };
-                println!("==========gpu multiexp cost:{:?} end",start.elapsed());
+                println!("========== gpu multiexp end cost:{:?} ",start.elapsed());
                 tx_gpu.send(results).unwrap();
 
             });
             // CPU
             scoped.execute(move || {
                 let start = Instant::now();
-                println!("main MultiexpKernel.multiexp: ================================ cpu multiexp start ================================ ");
+                println!("========== cpu multiexp start");
                 let cpu_acc = cpu_multiexp(
                     &pool,
                     (Arc::new(cpu_bases.to_vec()), 0),
@@ -402,7 +394,7 @@ where
                     Arc::new(cpu_exps.to_vec()),
                     &mut None,
                 );
-                println!("main MultiexpKernel.multiexp: ================================ cpu multiexp cost:{:?} end ================================ ",start.elapsed());
+                println!("========== cpu multiexp end cost:{:?} ",start.elapsed());
                 let cpu_r = cpu_acc.wait().unwrap();
 
                 tx_cpu.send(cpu_r).unwrap();

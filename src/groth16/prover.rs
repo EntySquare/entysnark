@@ -447,7 +447,7 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
         .map(|(((mut prover, (input_assignment, aux_assignment)), r), s)| {
             times = times + 1;
             let inner = Instant::now();
-            println!("[{}]prover.proofs inner begin",times);
+            println!("[{}] prover.proofs inner begin",times);
             let par = Instant::now();
             println!("[{}]======= prover.proofs: get fft a_s begin",times);
             let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
@@ -631,7 +631,7 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
             g_c.add_assign(&b1_answer);
             g_c.add_assign(&h.wait()?);
             g_c.add_assign(&l.wait()?);
-            println!("[{}]prover.proofs inner end time: {:?}",times, inner.elapsed());
+            println!("[{}] prover.proofs inner end time: {:?}",times, inner.elapsed());
 
             Ok(Proof {
                 a: g_a.into_affine(),
