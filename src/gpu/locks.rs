@@ -42,17 +42,17 @@ impl GPULock {
         // let glock = gpu_lock_path(GPU_LOCK_NAME, 0);
         // let glock = File::create(&glock)
         //     .unwrap_or_else(|_| panic!("Cannot create GPU glock file at {:?}", &glock));
+        let devs = opencl::Device::all();
+        for dev in &devs {
+            println!(
+                "Device {}-{}: {:?} ",
+                dev.name(),
+                dev.bus_id().unwrap(),
+                dev.brand()
+            );
+        }
         loop {
             // glock.lock_exclusive().unwrap();
-            let devs = opencl::Device::all();
-            for dev in &devs {
-                println!(
-                    "Device {}-{}: {:?} ",
-                    dev.name(),
-                    dev.bus_id().unwrap(),
-                    dev.brand()
-                );
-            }
             for (i,dev) in devs.iter().enumerate() {
                 //测试用 勿提交，只用一台GPU
                 if i > 0 {

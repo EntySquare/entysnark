@@ -151,20 +151,20 @@ where
         // let num_groups = calc_num_groups(self.core_count, num_windows);
         let num_groups =  2 * self.core_count / num_windows;
         let bucket_len = 1 << window_size;
-        // println!("[{} - {}] SingleMultiexpKernel.multiexp:  exp_bits:{},window_size:{},num_windows:{},num_groups:{},bucket_len:{}",bus_id, times, exp_bits,window_size,num_windows,num_groups,bucket_len);
+         println!("[{} - {}]============= SingleMultiexpKernel.multiexp:  exp_bits:{},window_size:{},num_windows:{},num_groups:{},bucket_len:{}",bus_id, times, exp_bits,window_size,num_windows,num_groups,bucket_len);
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
         // Each thread will use `num_groups` * `num_windows` * `bucket_len` buckets.
-        // let size1 = std::mem::size_of::<G>();
-        // let size2 = std::mem::size_of::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>();
-        // let size3 = std::mem::size_of::<<G as CurveAffine>::Projective>();
-        // let mem1 = size1 * n;
-        // let mem2 = size2 * n;
-        // //2 * self.core_count =`num_groups` * `num_windows`
-        // let mem3 = size3 * num_groups * num_windows * bucket_len;
-        // let mem4 = size3 * num_groups * num_windows ;
-        // println!("[{} - {}] SingleMultiexpKernel.multiexp: CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",bus_id, times, size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
+        let size1 = std::mem::size_of::<G>();
+        let size2 = std::mem::size_of::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>();
+        let size3 = std::mem::size_of::<<G as CurveAffine>::Projective>();
+        let mem1 = size1 * n;
+        let mem2 = size2 * n;
+        //2 * self.core_count =`num_groups` * `num_windows`
+        let mem3 = size3 * num_groups * num_windows * bucket_len;
+        let mem4 = size3 * num_groups * num_windows ;
+        println!("[{} - {}]============= SingleMultiexpKernel.multiexp: CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",bus_id, times, size1,size2,size3,mem1,mem2,mem3,mem4,(mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
@@ -310,7 +310,7 @@ where
         let num_devices = self.kernels.len();
         for (i, k) in self.kernels.iter().enumerate() {
             println!(
-                "Multiexp: Device {}: {} (Chunk-size: {})",
+                "==========Multiexp: Device {}: {} (Chunk-size: {})",
                 k.program.device().bus_id().unwrap(),
                 k.program.device().name(),
                 k.n
@@ -325,7 +325,7 @@ where
         let n = n - cpu_n;
         let (cpu_bases, bases) = bases.split_at(cpu_n);
         let (cpu_exps, exps) = exps.split_at(cpu_n);
-        println!("main MultiexpKernel.multiexp:cpu_utilization:{} , cpu_n={}, gpu_n={}",get_cpu_utilization(),cpu_n,n);
+        println!("========== multiexp:cpu_utilization:{} , cpu_n={}, gpu_n={}",get_cpu_utilization(),cpu_n,n);
 
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
         // println!("main MultiexpKernel.multiexp: exp_num:{} , num_devices:{} , chunk_size:{}",n,num_devices, chunk_size);
@@ -342,7 +342,7 @@ where
             // GPU
             scoped.execute(move || {
                 let start = Instant::now();
-                println!("main MultiexpKernel.multiexp: ================================ gpu multiexp start ================================");
+                println!("==========gpu multiexp start");
                 let results = if n > 0 {
                    // println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                     bases
@@ -387,7 +387,7 @@ where
                 } else {
                     Vec::new()
                 };
-                println!("main MultiexpKernel.multiexp: ================================ gpu multiexp cost:{:?} end ================================",start.elapsed());
+                println!("==========gpu multiexp cost:{:?} end",start.elapsed());
                 tx_gpu.send(results).unwrap();
 
             });

@@ -131,23 +131,23 @@ where
     /// * `log_n` - Specifies log2 of number of elements
     pub fn radix_fft(&mut self, a: &mut [E::Fr], omega: &E::Fr, log_n: u32) -> GPUResult<()> {
         let start = Instant::now();
-        println!("fft.radix_fft: ========== radix_fft start ==========");
+        println!("==========fft.radix_fft start..");
         let fr_size=std::mem::size_of::<E::Fr>();
-        println!("fft.radix_fft: data.len:{}, log_n:{},fr_size:{} ", a.len(),log_n,fr_size);
+        println!("==========fft.radix_fft: data.len:{}, log_n:{},fr_size:{} ", a.len(),log_n,fr_size);
         let n = 1 << log_n;
-        let now = Instant::now();
-        println!("fft.radix_fft: create_buffer start..");
+        // let now = Instant::now();
+        // println!("fft.radix_fft: create_buffer start..");
         let mut src_buffer = self.program.create_buffer::<E::Fr>(n)?;
         let mut dst_buffer = self.program.create_buffer::<E::Fr>(n)?;
-        println!("fft.radix_fft: create_buffer end cost:{:?}", now.elapsed());
+        // println!("fft.radix_fft: create_buffer end cost:{:?}", now.elapsed());
 
         let max_deg = cmp::min(MAX_LOG2_RADIX, log_n);
         self.setup_pq_omegas(omega, n, max_deg)?;
 
-        let now = Instant::now();
-        println!("fft.radix_fft: write_from start..");
+        // let now = Instant::now();
+        // println!("fft.radix_fft: write_from start..");
         src_buffer.write_from(0, &*a)?;
-        println!("fft.radix_fft: write_from end cost:{:?}", now.elapsed());
+        // println!("fft.radix_fft: write_from end cost:{:?}", now.elapsed());
 
 
         let mut log_p = 0u32;
@@ -158,13 +158,13 @@ where
             std::mem::swap(&mut src_buffer, &mut dst_buffer);
         }
 
-        let now = Instant::now();
-        println!("fft.radix_fft: read_into start..");
+        // let now = Instant::now();
+        // println!("fft.radix_fft: read_into start..");
 
         src_buffer.read_into(0, a)?;
-        println!("fft.radix_fft: read_into end cost:{:?}", now.elapsed());
+        // println!("fft.radix_fft: read_into end cost:{:?}", now.elapsed());
 
-        println!("fft.radix_fft: ========== radix_fft end cost:{:?} ==========", start.elapsed());
+        println!("==========fft.radix_fft end cost:{:?} ", start.elapsed());
         Ok(())
     }
 }

@@ -446,6 +446,8 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
         .zip(s_s.into_iter())
         .map(|(((mut prover, (input_assignment, aux_assignment)), r), s)| {
             times = times + 1;
+            let inner = Instant::now();
+            println!("[{}]prover.proofs inner begin",times);
             let par = Instant::now();
             println!("[{}]======= prover.proofs: get fft a_s begin",times);
             let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
@@ -503,7 +505,6 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
 
             let par = Instant::now();
             println!("[{}]======= prover.proofs: get multiexp input begin",times);
-
             let b_input_density = Arc::new(prover.b_input_density);
             let b_aux_density = Arc::new(prover.b_aux_density);
             let a_aux_density = Arc::new(prover.a_aux_density);
@@ -592,6 +593,7 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
                 &mut multiexp_kern,
             );
             println!("[{}]======= prover.proofs: get multiexp input end: {:?}",times, par.elapsed());
+
             drop(multiexp_kern);
 
             if vk.delta_g1.is_zero() || vk.delta_g2.is_zero() {
@@ -629,6 +631,7 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
             g_c.add_assign(&b1_answer);
             g_c.add_assign(&h.wait()?);
             g_c.add_assign(&l.wait()?);
+            println!("[{}]prover.proofs inner end time: {:?}",times, inner.elapsed());
 
             Ok(Proof {
                 a: g_a.into_affine(),
