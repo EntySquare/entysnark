@@ -164,7 +164,7 @@ where
         src_buffer.read_into(0, a)?;
         // println!("fft.radix_fft: read_into end cost:{:?}", now.elapsed());
 
-        println!("========== fft.radix_fft end cost:{:?} ", start.elapsed());
+        println!("========== radix_fft end cost:{:?} ", start.elapsed());
         Ok(())
     }
 }
