@@ -1,13 +1,13 @@
+use std::fmt;
 use std::io::{self, Read, Write};
+use std::marker::PhantomData;
 
-use groupy::{CurveAffine, EncodedPoint};
-
-use crate::bls::Engine;
+use group::{prime::PrimeCurveAffine, GroupEncoding};
+use pairing::Engine;
+use rayon::prelude::*;
 
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::fmt;
-use std::marker::PhantomData;
 
 #[derive(Clone, Debug)]
 pub struct Proof<E: Engine> {
@@ -58,9 +58,9 @@ impl<E: Engine> PartialEq for Proof<E> {
 
 impl<E: Engine> Proof<E> {
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        writer.write_all(self.a.into_compressed().as_ref())?;
-        writer.write_all(self.b.into_compressed().as_ref())?;
-        writer.write_all(self.c.into_compressed().as_ref())?;
+        writer.write_all(self.a.to_bytes().as_ref())?;
+        writer.write_all(self.b.to_bytes().as_ref())?;
+        writer.write_all(self.c.to_bytes().as_ref())?;
 
         Ok(())
     }
@@ -74,161 +74,165 @@ impl<E: Engine> Proof<E> {
     }
 
     pub fn size() -> usize {
-        2 * <<<E as Engine>::G1Affine as groupy::CurveAffine>::Compressed as groupy::EncodedPoint>::size()
-            + <<<E as Engine>::G2Affine as groupy::CurveAffine>::Compressed as groupy::EncodedPoint>::size(
-            )
+        let g1_compressed_size = <E::G1Affine as GroupEncoding>::Repr::default()
+            .as_ref()
+            .len();
+        let g2_compressed_size = <E::G2Affine as GroupEncoding>::Repr::default()
+            .as_ref()
+            .len();
+        2 * g1_compressed_size + g2_compressed_size
     }
 
     pub fn read_many(proof_bytes: &[u8], num_proofs: usize) -> io::Result<Vec<Self>> {
-        use crate::multicore::THREAD_POOL;
-        use rayon::prelude::*;
         debug_assert_eq!(proof_bytes.len(), num_proofs * Self::size());
 
         // Decompress and group check in parallel
-        THREAD_POOL.install(|| {
-            #[derive(Clone, Copy)]
-            enum ProofPart<E: Engine> {
-                A(E::G1Affine),
-                B(E::G2Affine),
-                C(E::G1Affine),
-            }
+        #[derive(Clone, Copy)]
+        enum ProofPart<E: Engine> {
+            A(E::G1Affine),
+            B(E::G2Affine),
+            C(E::G1Affine),
+        }
+        let g1_len = <E::G1Affine as GroupEncoding>::Repr::default()
+            .as_ref()
+            .len();
+        let g2_len = <E::G2Affine as GroupEncoding>::Repr::default()
+            .as_ref()
+            .len();
 
-            let parts = (0..num_proofs * 3)
-                .into_par_iter()
-                .map(|i| -> io::Result<_> {
-                    // Work on all G2 points first since they are more expensive. Avoid
-                    // having a long pole due to g2 starting late.
-                    let c = i / num_proofs;
-                    let p = i % num_proofs;
-                    let offset = Self::size() * p;
-                    match c {
-                        0 => {
-                            let mut g2_repr = <E::G2Affine as CurveAffine>::Compressed::empty();
-                            let start = offset + <E::G1Affine as CurveAffine>::Compressed::size();
-                            let end = start + <E::G2Affine as CurveAffine>::Compressed::size();
-                            g2_repr.as_mut().copy_from_slice(&proof_bytes[start..end]);
-
-                            let b = g2_repr
-                                .into_affine()
-                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
-                                .and_then(|e| {
-                                    if e.is_zero() {
-                                        Err(io::Error::new(
-                                            io::ErrorKind::InvalidData,
-                                            "point at infinity",
-                                        ))
-                                    } else {
-                                        Ok(e)
-                                    }
-                                })?;
-
-                            Ok(ProofPart::<E>::B(b))
-                        }
-                        1 => {
-                            let mut g1_repr = <E::G1Affine as CurveAffine>::Compressed::empty();
-                            let start = offset;
-                            let end = start + <E::G1Affine as CurveAffine>::Compressed::size();
-                            g1_repr.as_mut().copy_from_slice(&proof_bytes[start..end]);
-
-                            let a = g1_repr
-                                .into_affine()
-                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
-                                .and_then(|e| {
-                                    if e.is_zero() {
-                                        Err(io::Error::new(
-                                            io::ErrorKind::InvalidData,
-                                            "point at infinity",
-                                        ))
-                                    } else {
-                                        Ok(e)
-                                    }
-                                })?;
-                            Ok(ProofPart::<E>::A(a))
-                        }
-                        2 => {
-                            let mut g1_repr = <E::G1Affine as CurveAffine>::Compressed::empty();
-                            let start = offset
-                                + <E::G1Affine as CurveAffine>::Compressed::size()
-                                + <E::G2Affine as CurveAffine>::Compressed::size();
-                            let end = start + <E::G1Affine as CurveAffine>::Compressed::size();
-
-                            g1_repr.as_mut().copy_from_slice(&proof_bytes[start..end]);
-                            let c = g1_repr
-                                .into_affine()
-                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
-                                .and_then(|e| {
-                                    if e.is_zero() {
-                                        Err(io::Error::new(
-                                            io::ErrorKind::InvalidData,
-                                            "point at infinity",
-                                        ))
-                                    } else {
-                                        Ok(e)
-                                    }
-                                })?;
-
-                            Ok(ProofPart::<E>::C(c))
-                        }
-                        _ => unreachable!("invalid math {}", c),
-                    }
-                })
-                .collect::<io::Result<Vec<_>>>()?;
-
-            let mut proofs = vec![
-                Proof::<E> {
-                    a: <E::G1Affine as CurveAffine>::zero(),
-                    b: <E::G2Affine as CurveAffine>::zero(),
-                    c: <E::G1Affine as CurveAffine>::zero(),
-                };
-                num_proofs
-            ];
-
-            for (i, part) in parts.into_iter().enumerate() {
+        let parts = (0..num_proofs * 3)
+            .into_par_iter()
+            .with_min_len(num_proofs / 2) // only use up to 6 threads
+            .map(|i| -> io::Result<_> {
+                // Work on all G2 points first since they are more expensive. Avoid
+                // having a long pole due to g2 starting late.
                 let c = i / num_proofs;
                 let p = i % num_proofs;
-                let proof = &mut proofs[p];
+                let offset = Self::size() * p;
                 match c {
                     0 => {
-                        if let ProofPart::B(b) = part {
-                            proof.b = b;
-                        } else {
-                            unreachable!("invalid construction");
-                        };
+                        let mut g2_repr = <E::G2Affine as GroupEncoding>::Repr::default();
+                        let start = offset + g1_len;
+                        let end = start + g2_len;
+                        g2_repr.as_mut().copy_from_slice(&proof_bytes[start..end]);
+
+                        let b: E::G2Affine = {
+                            let opt = E::G2Affine::from_bytes(&g2_repr);
+                            Option::from(opt).ok_or_else(|| {
+                                io::Error::new(io::ErrorKind::InvalidData, "not on curve")
+                            })
+                        }?;
+                        if b.is_identity().into() {
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                "point at infinity",
+                            ));
+                        }
+                        Ok(ProofPart::<E>::B(b))
                     }
                     1 => {
-                        if let ProofPart::A(a) = part {
-                            proof.a = a;
-                        } else {
-                            unreachable!("invalid construction");
-                        };
+                        let mut g1_repr = <E::G1Affine as GroupEncoding>::Repr::default();
+                        let start = offset;
+                        let end = start + g1_len;
+                        g1_repr.as_mut().copy_from_slice(&proof_bytes[start..end]);
+                        let a: E::G1Affine = {
+                            let opt = E::G1Affine::from_bytes(&g1_repr);
+                            Option::from(opt).ok_or_else(|| {
+                                io::Error::new(io::ErrorKind::InvalidData, "not on curve")
+                            })
+                        }?;
+
+                        if a.is_identity().into() {
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                "point at infinity",
+                            ));
+                        }
+                        Ok(ProofPart::<E>::A(a))
                     }
                     2 => {
-                        if let ProofPart::C(c) = part {
-                            proof.c = c;
-                        } else {
-                            unreachable!("invalid construction");
-                        };
+                        let mut g1_repr = <E::G1Affine as GroupEncoding>::Repr::default();
+                        let start = offset + g1_len + g2_len;
+                        let end = start + g1_len;
+
+                        g1_repr.as_mut().copy_from_slice(&proof_bytes[start..end]);
+                        let c: E::G1Affine = {
+                            let opt = E::G1Affine::from_bytes(&g1_repr);
+                            Option::from(opt).ok_or_else(|| {
+                                io::Error::new(io::ErrorKind::InvalidData, "not on curve")
+                            })
+                        }?;
+
+                        if c.is_identity().into() {
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                "point at infinity",
+                            ));
+                        }
+
+                        Ok(ProofPart::<E>::C(c))
                     }
                     _ => unreachable!("invalid math {}", c),
                 }
-            }
+            })
+            .collect::<io::Result<Vec<_>>>()?;
 
-            Ok(proofs)
-        })
+        let mut proofs = vec![
+            Proof::<E> {
+                a: <E::G1Affine>::identity(),
+                b: <E::G2Affine>::identity(),
+                c: <E::G1Affine>::identity(),
+            };
+            num_proofs
+        ];
+
+        for (i, part) in parts.into_iter().enumerate() {
+            let c = i / num_proofs;
+            let p = i % num_proofs;
+            let proof = &mut proofs[p];
+            match c {
+                0 => {
+                    if let ProofPart::B(b) = part {
+                        proof.b = b;
+                    } else {
+                        unreachable!("invalid construction");
+                    };
+                }
+                1 => {
+                    if let ProofPart::A(a) = part {
+                        proof.a = a;
+                    } else {
+                        unreachable!("invalid construction");
+                    };
+                }
+                2 => {
+                    if let ProofPart::C(c) = part {
+                        proof.c = c;
+                    } else {
+                        unreachable!("invalid construction");
+                    };
+                }
+                _ => unreachable!("invalid math {}", c),
+            }
+        }
+
+        Ok(proofs)
     }
 }
 
 #[cfg(test)]
 mod test_with_bls12_381 {
+    use std::ops::MulAssign;
+
     use super::*;
-    use crate::bls::{Bls12, Fr};
     use crate::groth16::{
         create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof,
         Parameters,
     };
     use crate::{Circuit, ConstraintSystem, SynthesisError};
     use bincode::{deserialize, serialize};
-    use ff::Field;
+    use blstrs::{Bls12, Scalar as Fr};
+    use ff::{Field, PrimeField};
     use rand::thread_rng;
 
     #[test]
@@ -238,13 +242,13 @@ mod test_with_bls12_381 {
 
     #[test]
     fn serialization() {
-        struct MySillyCircuit<E: Engine> {
-            a: Option<E::Fr>,
-            b: Option<E::Fr>,
+        struct MySillyCircuit<Scalar: PrimeField> {
+            a: Option<Scalar>,
+            b: Option<Scalar>,
         }
 
-        impl<E: Engine> Circuit<E> for MySillyCircuit<E> {
-            fn synthesize<CS: ConstraintSystem<E>>(
+        impl<Scalar: PrimeField> Circuit<Scalar> for MySillyCircuit<Scalar> {
+            fn synthesize<CS: ConstraintSystem<Scalar>>(
                 self,
                 cs: &mut CS,
             ) -> Result<(), SynthesisError> {
@@ -289,8 +293,8 @@ mod test_with_bls12_381 {
         let pvk = prepare_verifying_key::<Bls12>(&params.vk);
 
         for _ in 0..100 {
-            let a = Fr::random(rng);
-            let b = Fr::random(rng);
+            let a = Fr::random(&mut *rng);
+            let b = Fr::random(&mut *rng);
             let mut c = a;
             c.mul_assign(&b);
 
