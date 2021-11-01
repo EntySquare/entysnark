@@ -5,21 +5,23 @@ use std::sync::{Arc, RwLock};
 use ff::Field;
 use log::{error, info};
 use pairing::Engine;
-use rust_gpu_tools::{program_closures, Device, LocalBuffer, Program};
+use rust_gpu_tools::{Device, LocalBuffer, Program, program_closures};
 
 use crate::gpu::{
     error::{GPUError, GPUResult},
-    locks, program, GpuEngine,
+    GpuEngine, locks, program,
 };
 use crate::multicore::THREAD_POOL;
 
-const LOG2_MAX_ELEMENTS: usize = 32; // At most 2^32 elements is supported.
-const MAX_LOG2_RADIX: u32 = 8; // Radix256
+const LOG2_MAX_ELEMENTS: usize = 32;
+// At most 2^32 elements is supported.
+const MAX_LOG2_RADIX: u32 = 8;
+// Radix256
 const MAX_LOG2_LOCAL_WORK_SIZE: u32 = 7; // 128
 
 pub struct SingleFftKernel<E>
-where
-    E: Engine + GpuEngine,
+    where
+        E: Engine + GpuEngine,
 {
     program: Program,
     priority: bool,
@@ -80,9 +82,9 @@ impl<E: Engine + GpuEngine> SingleFftKernel<E> {
                 // 1=>radix2, 2=>radix4, 3=>radix8, ...
                 let deg = cmp::min(max_deg, log_n - log_p);
 
-                if locks::PriorityLock::should_break(self.priority) {
-                    return Err(GPUError::GPUTaken);
-                }
+                // if locks::PriorityLock::should_break(self.priority) {
+                //     return Err(GPUError::GPUTaken);
+                // }
 
                 let n = 1u32 << log_n;
                 let local_work_size = 1 << cmp::min(deg - 1, MAX_LOG2_LOCAL_WORK_SIZE);
@@ -119,19 +121,20 @@ impl<E: Engine + GpuEngine> SingleFftKernel<E> {
 
 #[allow(clippy::upper_case_acronyms)]
 pub struct FFTKernel<E>
-where
-    E: Engine + GpuEngine,
+    where
+        E: Engine + GpuEngine,
 {
     kernels: Vec<SingleFftKernel<E>>,
     _lock: locks::GPULock, // RFC 1857: struct fields are dropped in the same order as they are declared.
 }
 
 impl<E> FFTKernel<E>
-where
-    E: Engine + GpuEngine,
+    where
+        E: Engine + GpuEngine,
 {
     pub fn create(priority: bool) -> GPUResult<FFTKernel<E>> {
         let lock = locks::GPULock::lock();
+        let lock_id = lock.id();
 
         let kernels: Vec<_> = Device::all()
             .iter()
@@ -144,7 +147,11 @@ where
                         e
                     );
                 }
-                kernel.ok()
+                if device.bus_id().unwrap() == lock_id {
+                    kernel.ok()
+                } else {
+                    None
+                }
             })
             .collect();
 
@@ -153,7 +160,7 @@ where
         }
         info!("FFT: {} working device(s) selected. ", kernels.len());
         for (i, k) in kernels.iter().enumerate() {
-            info!("FFT: Device {}: {}", i, k.program.device_name(),);
+            info!("FFT: Device {}: {}", i, k.program.device_name(), );
         }
 
         Ok(FFTKernel {
@@ -198,7 +205,7 @@ where
                 let result = result.clone();
                 s.execute(move || {
                     for ((input, omega), log_n) in
-                        inputs.iter_mut().zip(omegas.iter()).zip(log_ns.iter())
+                    inputs.iter_mut().zip(omegas.iter()).zip(log_ns.iter())
                     {
                         if result.read().unwrap().is_err() {
                             break;

@@ -127,9 +127,9 @@ where
     where
         G: PrimeCurveAffine,
     {
-        if locks::PriorityLock::should_break(self.priority) {
-            return Err(GPUError::GPUTaken);
-        }
+        // if locks::PriorityLock::should_break(self.priority) {
+        //     return Err(GPUError::GPUTaken);
+        // }
 
         let exp_bits = exp_size::<E>() * 8;
         let window_size = calc_window_size(n as usize, exp_bits, self.core_count);
@@ -229,6 +229,7 @@ where
 {
     pub fn create(priority: bool) -> GPUResult<MultiexpKernel<E>> {
         let lock = locks::GPULock::lock();
+        let lock_id = lock.id();
 
         let kernels: Vec<_> = Device::all()
             .iter()
@@ -241,7 +242,11 @@ where
                         e
                     );
                 }
-                kernel.ok()
+                if device.bus_id().unwrap() == lock_id {
+                    kernel.ok()
+                }else{
+                    None
+                }
             })
             .collect();
 

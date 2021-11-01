@@ -294,13 +294,13 @@ where
         log_d += 1;
     }
 
-    #[cfg(any(feature = "cuda", feature = "opencl"))]
-    let prio_lock = if priority {
-        trace!("acquiring priority lock");
-        Some(PriorityLock::lock())
-    } else {
-        None
-    };
+    // #[cfg(any(feature = "cuda", feature = "opencl"))]
+    // let prio_lock = if priority {
+    //     trace!("acquiring priority lock");
+    //     Some(PriorityLock::lock())
+    // } else {
+    //     None
+    // };
 
     let mut a_s = Vec::with_capacity(num_circuits);
     let mut params_h = None;
@@ -516,11 +516,11 @@ where
         )
         .collect::<Result<Vec<_>, SynthesisError>>()?;
 
-    #[cfg(any(feature = "cuda", feature = "opencl"))]
-    {
-        trace!("dropping priority lock");
-        drop(prio_lock);
-    }
+    // #[cfg(any(feature = "cuda", feature = "opencl"))]
+    // {
+    //     trace!("dropping priority lock");
+    //     drop(prio_lock);
+    // }
 
     let proof_time = start.elapsed();
     info!("prover time: {:?}", proof_time);
