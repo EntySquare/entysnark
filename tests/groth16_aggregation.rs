@@ -1,4 +1,3 @@
-use bellperson::bls::{Bls12, Engine, Fr, FrRepr};
 use bellperson::gadgets::num::AllocatedNum;
 use bellperson::groth16::{
     aggregate::{
@@ -8,13 +7,16 @@ use bellperson::groth16::{
     verify_proofs_batch, Parameters, Proof,
 };
 use bellperson::{Circuit, ConstraintSystem, SynthesisError};
-use ff::{Field, PrimeField, ScalarEngine};
-use groupy::CurveProjective;
+use blstrs::{Bls12, Scalar as Fr};
+use ff::{Field, PrimeField};
+use group::{Curve, Group};
 use itertools::Itertools;
+use pairing::Engine;
 use rand::{RngCore, SeedableRng};
 use rayon::prelude::*;
 use serde::Serialize;
 use std::default::Default;
+use std::ops::MulAssign;
 use std::time::{Duration, Instant};
 
 const MIMC_ROUNDS: usize = 322;
@@ -32,14 +34,14 @@ const MIMC_ROUNDS: usize = 322;
 ///     return xL
 /// }
 /// ```
-fn mimc<E: Engine>(mut xl: E::Fr, mut xr: E::Fr, constants: &[E::Fr]) -> E::Fr {
+fn mimc<Scalar: PrimeField>(mut xl: Scalar, mut xr: Scalar, constants: &[Scalar]) -> Scalar {
     assert_eq!(constants.len(), MIMC_ROUNDS);
 
-    for i in 0..MIMC_ROUNDS {
+    for constant in constants {
         let mut tmp1 = xl;
-        tmp1.add_assign(&constants[i]);
+        tmp1.add_assign(constant);
         let mut tmp2 = tmp1;
-        tmp2.square();
+        tmp2 = tmp2.square();
         tmp2.mul_assign(&tmp1);
         tmp2.add_assign(&xr);
         xr = xl;
@@ -50,14 +52,14 @@ fn mimc<E: Engine>(mut xl: E::Fr, mut xr: E::Fr, constants: &[E::Fr]) -> E::Fr {
 }
 
 #[derive(Clone)]
-struct MiMCDemo<'a, E: Engine> {
-    xl: Option<E::Fr>,
-    xr: Option<E::Fr>,
-    constants: &'a [E::Fr],
+struct MimcDemo<'a, Scalar: PrimeField> {
+    xl: Option<Scalar>,
+    xr: Option<Scalar>,
+    constants: &'a [Scalar],
 }
 
-impl<'a, E: Engine> Circuit<E> for MiMCDemo<'a, E> {
-    fn synthesize<CS: ConstraintSystem<E>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
+impl<'a, Scalar: PrimeField> Circuit<Scalar> for MimcDemo<'a, Scalar> {
+    fn synthesize<CS: ConstraintSystem<Scalar>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
         assert_eq!(self.constants.len(), MIMC_ROUNDS);
 
         // Allocate the first component of the preimage.
@@ -81,8 +83,7 @@ impl<'a, E: Engine> Circuit<E> for MiMCDemo<'a, E> {
             // tmp = (xL + Ci)^2
             let tmp_value = xl_value.map(|mut e| {
                 e.add_assign(&self.constants[i]);
-                e.square();
-                e
+                e.square()
             });
             let tmp = cs.alloc(
                 || "tmp",
@@ -141,13 +142,16 @@ impl<'a, E: Engine> Circuit<E> for MiMCDemo<'a, E> {
 }
 
 #[derive(Clone)]
-struct TestCircuit<E: Engine> {
-    public_inputs: Vec<Option<E::Fr>>,
-    witness_input: Option<E::Fr>,
-    public_product: Option<E::Fr>,
+struct TestCircuit<Scalar: PrimeField> {
+    public_inputs: Vec<Option<Scalar>>,
+    witness_input: Option<Scalar>,
+    public_product: Option<Scalar>,
 }
-impl<E: Engine> Circuit<E> for TestCircuit<E> {
-    fn synthesize<CS: ConstraintSystem<E>>(self, mut cs: &mut CS) -> Result<(), SynthesisError> {
+impl<Scalar: PrimeField> Circuit<Scalar> for TestCircuit<Scalar> {
+    fn synthesize<CS: ConstraintSystem<Scalar>>(
+        self,
+        mut cs: &mut CS,
+    ) -> Result<(), SynthesisError> {
         let input_variables: Vec<_> = self
             .public_inputs
             .iter()
@@ -275,14 +279,14 @@ impl Record {
 fn test_groth16_bench() {
     let n_average = 3; // number of times we do the benchmarking to average out results
     let nb_proofs = vec![8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192];
-    let max = nb_proofs.last().unwrap().clone();
+    let max = *nb_proofs.last().unwrap();
     let public_inputs = 350; // roughly what a prove commit needs
     let mut rng = rand_chacha::ChaChaRng::seed_from_u64(0u64);
     // CRS for aggregation
     let generic = setup_fake_srs(&mut rng, max);
     // Create parameters for our circuit
     let params = {
-        let c = TestCircuit::<Bls12> {
+        let c = TestCircuit::<Fr> {
             public_inputs: vec![Default::default(); public_inputs],
             public_product: Default::default(),
             witness_input: Default::default(),
@@ -306,9 +310,9 @@ fn test_groth16_bench() {
     let inclusion = vec![1, 2, 3];
     for i in nb_proofs {
         let mut records = Vec::new();
+        let (pk, vk) = generic.specialize(i);
         for _ in 0..n_average {
             println!("Proofs {}", i);
-            let (pk, vk) = generic.specialize(i);
             // Aggregate proofs using inner product proofs
             let start = Instant::now();
             println!("\t-Aggregation...");
@@ -359,15 +363,11 @@ fn test_groth16_bench() {
             let batch_verifier_time = start.elapsed().as_millis();
 
             println!("\t-Batch all-in verification...");
-            let proofs_serialized: Vec<Vec<_>> = proofs
-                .iter()
-                .take(i)
-                .map(|p| {
-                    let mut buff = Vec::new();
-                    p.write(&mut buff).unwrap();
-                    buff
-                })
-                .collect::<Vec<Vec<_>>>();
+            let proofs_serialized = proofs.iter().take(i).map(|p| {
+                let mut buff = Vec::new();
+                p.write(&mut buff).unwrap();
+                buff
+            });
             let start = Instant::now();
             let proofs: Vec<_> = proofs_serialized
                 .into_iter()
@@ -406,15 +406,15 @@ fn generate_proof<R: SeedableRng + RngCore>(
     let mut statement = Vec::new();
     let mut prod = Fr::one();
     for _i in 0..publics {
-        let x = Fr::from_str("4").unwrap();
+        let x = Fr::from(4u64);
         public_inputs.push(Some(x));
         statement.push(x);
         prod.mul_assign(&x);
     }
-    let w = Fr::from_repr(FrRepr::from(3)).unwrap();
-    let mut product: Fr = w.clone();
+    let w = Fr::from(3);
+    let mut product: Fr = w;
     product.mul_assign(&prod);
-    statement.push(product.clone());
+    statement.push(product);
 
     let c = TestCircuit {
         public_inputs,
@@ -440,7 +440,7 @@ fn test_groth16_aggregation() {
 
     // Create parameters for our circuit
     let params = {
-        let c = TestCircuit::<Bls12> {
+        let c = TestCircuit::<Fr> {
             public_inputs: vec![Default::default(); NUM_PUBLIC_INPUTS],
             public_product: Default::default(),
             witness_input: Default::default(),
@@ -468,16 +468,16 @@ fn test_groth16_aggregation() {
         let mut statement = Vec::new();
         let mut prod = Fr::one();
         for _i in 0..NUM_PUBLIC_INPUTS {
-            let x = Fr::from_str("4").unwrap();
+            let x = Fr::from(4u64);
             public_inputs.push(Some(x));
             statement.push(x);
             prod.mul_assign(&x);
         }
-        let w = Fr::from_repr(FrRepr::from(3)).unwrap();
+        let w = Fr::from(3);
 
-        let mut product: Fr = w.clone();
+        let mut product: Fr = w;
         product.mul_assign(&prod);
-        statement.push(product.clone());
+        statement.push(product);
 
         let start = Instant::now();
         // Create an instance of our circuit (with the
@@ -522,7 +522,7 @@ fn test_groth16_aggregation() {
             &mut rng,
             &statements,
             &aggregate_proof,
-            &vec![4, 5, 6],
+            &[4, 5, 6],
         )
         .unwrap(),
         false
@@ -530,42 +530,39 @@ fn test_groth16_aggregation() {
 
     // 2. Non power of two
     let err = aggregate_proofs::<Bls12>(&pk, &to_include, &proofs[0..NUM_PROOFS - 1]).unwrap_err();
-    assert!(match err {
-        SynthesisError::NonPowerOfTwo => true,
-        _ => false,
-    });
+    assert!(matches!(err, SynthesisError::NonPowerOfTwo));
 
     // 3. aggregate invalid proof content (random A, B, and C)
-    let old_a = proofs[0].a.clone();
-    proofs[0].a = <Bls12 as Engine>::G1::random(&mut rng).into_affine();
+    let old_a = proofs[0].a;
+    proofs[0].a = <Bls12 as Engine>::G1::random(&mut rng).to_affine();
     let invalid_agg = aggregate_proofs::<Bls12>(&pk, &to_include, &proofs)
         .expect("I should be able to aggregate");
     let res = verify_aggregate_proof(&vk, &pvk, &mut rng, &statements, &invalid_agg, &to_include)
         .expect("no synthesis");
-    assert!(res == false);
+    assert_eq!(res, false);
     proofs[0].a = old_a;
 
-    let old_b = proofs[0].b.clone();
-    proofs[0].b = <Bls12 as Engine>::G2::random(&mut rng).into_affine();
+    let old_b = proofs[0].b;
+    proofs[0].b = <Bls12 as Engine>::G2::random(&mut rng).to_affine();
     let invalid_agg = aggregate_proofs::<Bls12>(&pk, &to_include, &proofs)
         .expect("I should be able to aggregate");
     let res = verify_aggregate_proof(&vk, &pvk, &mut rng, &statements, &invalid_agg, &to_include)
         .expect("no synthesis");
-    assert!(res == false);
+    assert_eq!(res, false);
     proofs[0].b = old_b;
 
-    let old_c = proofs[0].c.clone();
-    proofs[0].c = <Bls12 as Engine>::G1::random(&mut rng).into_affine();
+    let old_c = proofs[0].c;
+    proofs[0].c = <Bls12 as Engine>::G1::random(&mut rng).to_affine();
     let invalid_agg = aggregate_proofs::<Bls12>(&pk, &to_include, &proofs)
         .expect("I should be able to aggregate");
     let res = verify_aggregate_proof(&vk, &pvk, &mut rng, &statements, &invalid_agg, &to_include)
         .expect("no synthesis");
-    assert!(res == false);
+    assert_eq!(res, false);
     proofs[0].c = old_c;
 
     // 4. verify with invalid aggregate proof
     // first invalid commitment
-    let old_aggc = aggregate_proof.agg_c.clone();
+    let old_aggc = aggregate_proof.agg_c;
     aggregate_proof.agg_c = <Bls12 as Engine>::G1::random(&mut rng);
     let res = verify_aggregate_proof(
         &vk,
@@ -576,12 +573,12 @@ fn test_groth16_aggregation() {
         &to_include,
     )
     .expect("no synthesis");
-    assert!(res == false);
+    assert_eq!(res, false);
     aggregate_proof.agg_c = old_aggc;
 
     // 5. invalid gipa element
-    let old_finala = aggregate_proof.tmipp.gipa.final_a.clone();
-    aggregate_proof.tmipp.gipa.final_a = <Bls12 as Engine>::G1::random(&mut rng).into_affine();
+    let old_finala = aggregate_proof.tmipp.gipa.final_a;
+    aggregate_proof.tmipp.gipa.final_a = <Bls12 as Engine>::G1::random(&mut rng).to_affine();
     let res = verify_aggregate_proof(
         &vk,
         &pvk,
@@ -591,7 +588,7 @@ fn test_groth16_aggregation() {
         &to_include,
     )
     .expect("no synthesis");
-    assert!(res == false);
+    assert_eq!(res, false);
     aggregate_proof.tmipp.gipa.final_a = old_finala;
 }
 
@@ -602,14 +599,14 @@ fn test_groth16_aggregation_mimc() {
 
     // Generate the MiMC round constants
     let constants = (0..MIMC_ROUNDS)
-        .map(|_| <Bls12 as ScalarEngine>::Fr::random(&mut rng))
+        .map(|_| <Bls12 as Engine>::Fr::random(&mut rng))
         .collect::<Vec<_>>();
 
     println!("Creating parameters...");
 
     // Create parameters for our circuit
     let params = {
-        let c = MiMCDemo::<Bls12> {
+        let c = MimcDemo::<Fr> {
             xl: None,
             xr: None,
             constants: &constants,
@@ -638,14 +635,14 @@ fn test_groth16_aggregation_mimc() {
 
     for _ in 0..NUM_PROOFS_TO_AGGREGATE {
         // Generate a random preimage and compute the image
-        let xl = <Bls12 as ScalarEngine>::Fr::random(&mut rng);
-        let xr = <Bls12 as ScalarEngine>::Fr::random(&mut rng);
-        let image = mimc::<Bls12>(xl, xr, &constants);
+        let xl = <Bls12 as Engine>::Fr::random(&mut rng);
+        let xr = <Bls12 as Engine>::Fr::random(&mut rng);
+        let image = mimc::<Fr>(xl, xr, &constants);
 
         let start = Instant::now();
         // Create an instance of our circuit (with the
         // witness)
-        let c = MiMCDemo {
+        let c = MimcDemo {
             xl: Some(xl),
             xr: Some(xr),
             constants: &constants,

@@ -1,60 +1,69 @@
 use super::error::{GPUError, GPUResult};
 use crate::multicore::Worker;
-use ff::{PrimeField, ScalarEngine};
-use groupy::CurveAffine;
+use ff::PrimeField;
+use group::prime::PrimeCurveAffine;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 // This module is compiled instead of `fft.rs` and `multiexp.rs` if `gpu` feature is disabled.
-
+#[allow(clippy::upper_case_acronyms)]
 pub struct FFTKernel<E>(PhantomData<E>)
 where
-    E: ScalarEngine;
+    E: Engine;
 
 impl<E> FFTKernel<E>
 where
-    E: ScalarEngine,
+    E: Engine,
 {
     pub fn create(_: bool) -> GPUResult<FFTKernel<E>> {
-        return Err(GPUError::GPUDisabled);
+        Err(GPUError::GPUDisabled)
     }
 
     pub fn radix_fft(&mut self, _: &mut [E::Fr], _: &E::Fr, _: u32) -> GPUResult<()> {
-        return Err(GPUError::GPUDisabled);
+        Err(GPUError::GPUDisabled)
+    }
+    pub fn radix_fft_many(
+        &mut self,
+        _: &mut [&mut [E::Fr]],
+        _: &[E::Fr],
+        _: &[u32],
+    ) -> GPUResult<()> {
+        Err(GPUError::GPUDisabled)
     }
 }
 
 pub struct MultiexpKernel<E>(PhantomData<E>)
 where
-    E: ScalarEngine;
+    E: Engine;
 
 impl<E> MultiexpKernel<E>
 where
-    E: ScalarEngine,
+    E: Engine,
 {
     pub fn create(_: bool) -> GPUResult<MultiexpKernel<E>> {
-        return Err(GPUError::GPUDisabled);
+        Err(GPUError::GPUDisabled)
     }
 
     pub fn multiexp<G>(
         &mut self,
         _: &Worker,
         _: Arc<Vec<G>>,
-        _: Arc<Vec<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>>,
+        _: Arc<Vec<<G::Scalar as PrimeField>::Repr>>,
         _: usize,
         _: usize,
-    ) -> GPUResult<<G as CurveAffine>::Projective>
+    ) -> GPUResult<<G as PrimeCurveAffine>::Curve>
     where
-        G: CurveAffine,
+        G: PrimeCurveAffine,
     {
-        return Err(GPUError::GPUDisabled);
+        Err(GPUError::GPUDisabled)
     }
 }
 
-use crate::bls::Engine;
+use pairing::Engine;
 
 macro_rules! locked_kernel {
     ($class:ident) => {
+        #[allow(clippy::upper_case_acronyms)]
         pub struct $class<E>(PhantomData<E>);
 
         impl<E> $class<E>
