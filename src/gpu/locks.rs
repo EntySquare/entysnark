@@ -14,10 +14,10 @@ fn tmp_path(filename: &str) -> PathBuf {
     p.push(filename);
     p
 }
-fn gpu_lock_path(filename: &str, bus_id: u32) -> PathBuf {
+fn gpu_lock_path(filename: &str, unique_id: u32) -> PathBuf {
     let mut name = String::from(filename);
     name.push('.');
-    name += &bus_id.to_string();
+    name += &unique_id.to_string();
     let mut p = std::env::temp_dir();
     p.push(&name);
     p
@@ -36,23 +36,23 @@ impl GPULock {
         //     .unwrap_or_else(|_| panic!("Cannot create GPU glock file at {:?}", &glock));
         loop {
             // glock.lock_exclusive().unwrap();
-            let devs = opencl::Device::all();
+            let devs = Device::all();
             for dev in &devs {
                 println!(
                     "Device {}-{}: {:?} ",
                     dev.name(),
-                    dev.bus_id().unwrap(),
-                    dev.brand()
+                    dev.unique_id().unwrap(),
+                    dev.vendor()
                 );
             }
             for dev in devs {
                 println!(
                     "try get Device {}-{}: {:?} ",
                     dev.name(),
-                    dev.bus_id().unwrap(),
-                    dev.brand()
+                    dev.unique_id().unwrap(),
+                    dev.vendor()
                 );
-                let id = dev.bus_id().unwrap();
+                let id = dev.unique_id().unwrap();
                 let lock = gpu_lock_path(GPU_LOCK_NAME, id);
                 let lock = File::create(&lock)
                     .unwrap_or_else(|_| panic!("Cannot create GPU lock file at {:?}", &lock));
@@ -70,11 +70,11 @@ impl GPULock {
             .unwrap_or_else(|_| panic!("Cannot create GPU glock file at {:?}", &glock));
         loop {
             glock.lock_exclusive().unwrap();
-            let devs = opencl::Device::all();
+            let devs = Device::all();
             let mut lock_cnt = 0;
             let lock_num = devs.len();
             for dev in devs {
-                let id = dev.bus_id().unwrap();
+                let id = dev.unique_id().unwrap();
                 let lock = gpu_lock_path(GPU_LOCK_NAME, id);
                 let lock = File::create(&lock)
                     .unwrap_or_else(|_| panic!("Cannot create GPU lock file at {:?}", &lock));

@@ -242,7 +242,7 @@ where
                         e
                     );
                 }
-                if device.bus_id().unwrap() == lock_id {
+                if device.unique_id().unwrap() == lock_id {
                     kernel.ok()
                 }else{
                     None
