@@ -14,7 +14,7 @@ fn tmp_path(filename: &str) -> PathBuf {
     p.push(filename);
     p
 }
-fn gpu_lock_path(filename: &str, unique_id: u32) -> PathBuf {
+fn gpu_lock_path(filename: &str, unique_id: UniqueId) -> PathBuf {
     let mut name = String::from(filename);
     name.push('.');
     name += &unique_id.to_string();
@@ -25,9 +25,9 @@ fn gpu_lock_path(filename: &str, unique_id: u32) -> PathBuf {
 /// `GPULock` prevents two kernel objects to be instantiated simultaneously.
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug)]
-pub struct GPULock(File,u32);
+pub struct GPULock(File,UniqueId);
 impl GPULock {
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> UniqueId {
         self.1
     }
     pub fn lock() -> GPULock {
@@ -41,7 +41,7 @@ impl GPULock {
                 println!(
                     "Device {}-{}: {:?} ",
                     dev.name(),
-                    dev.unique_id().unwrap(),
+                    dev.unique_id(),
                     dev.vendor()
                 );
             }
@@ -49,10 +49,10 @@ impl GPULock {
                 println!(
                     "try get Device {}-{}: {:?} ",
                     dev.name(),
-                    dev.unique_id().unwrap(),
+                    dev.unique_id(),
                     dev.vendor()
                 );
-                let id = dev.unique_id().unwrap();
+                let id = dev.unique_id();
                 let lock = gpu_lock_path(GPU_LOCK_NAME, id);
                 let lock = File::create(&lock)
                     .unwrap_or_else(|_| panic!("Cannot create GPU lock file at {:?}", &lock));
@@ -64,32 +64,32 @@ impl GPULock {
             thread::sleep(Duration::from_secs(3));
         }
     }
-    pub fn lock_all() -> GPULock {
-        let glock = gpu_lock_path(GPU_LOCK_NAME, 0);
-        let glock = File::create(&glock)
-            .unwrap_or_else(|_| panic!("Cannot create GPU glock file at {:?}", &glock));
-        loop {
-            glock.lock_exclusive().unwrap();
-            let devs = Device::all();
-            let mut lock_cnt = 0;
-            let lock_num = devs.len();
-            for dev in devs {
-                let id = dev.unique_id().unwrap();
-                let lock = gpu_lock_path(GPU_LOCK_NAME, id);
-                let lock = File::create(&lock)
-                    .unwrap_or_else(|_| panic!("Cannot create GPU lock file at {:?}", &lock));
-                if lock.try_lock_exclusive().is_err() {
-                    break;
-                }
-                lock_cnt = lock_cnt + 1;
-            }
-            if lock_cnt == lock_num {
-                return GPULock(glock, 0);
-            }
-            glock.unlock().unwrap();
-            thread::sleep(Duration::from_secs(3));
-        }
-    }
+    // pub fn lock_all() -> GPULock {
+    //     let glock = gpu_lock_path(GPU_LOCK_NAME, 0);
+    //     let glock = File::create(&glock)
+    //         .unwrap_or_else(|_| panic!("Cannot create GPU glock file at {:?}", &glock));
+    //     loop {
+    //         glock.lock_exclusive().unwrap();
+    //         let devs = Device::all();
+    //         let mut lock_cnt = 0;
+    //         let lock_num = devs.len();
+    //         for dev in devs {
+    //             let id = dev.unique_id();
+    //             let lock = gpu_lock_path(GPU_LOCK_NAME, id);
+    //             let lock = File::create(&lock)
+    //                 .unwrap_or_else(|_| panic!("Cannot create GPU lock file at {:?}", &lock));
+    //             if lock.try_lock_exclusive().is_err() {
+    //                 break;
+    //             }
+    //             lock_cnt = lock_cnt + 1;
+    //         }
+    //         if lock_cnt == lock_num {
+    //             return GPULock(glock, UniqueId);
+    //         }
+    //         glock.unlock().unwrap();
+    //         thread::sleep(Duration::from_secs(3));
+    //     }
+    // }
 }
 impl Drop for GPULock {
     fn drop(&mut self) {

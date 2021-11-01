@@ -147,7 +147,7 @@ impl<E> FFTKernel<E>
                         e
                     );
                 }
-                if device.unique_id().unwrap() == lock_id {
+                if device.unique_id() == lock_id {
                     kernel.ok()
                 } else {
                     None
