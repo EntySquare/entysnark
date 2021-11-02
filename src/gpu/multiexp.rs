@@ -1,17 +1,18 @@
-use super::error::{GPUError, GPUResult};
-use super::{locks, program, utils, GpuEngine};
-use crate::multicore::Worker;
-use crate::multiexp::{multiexp as cpu_multiexp, FullDensity};
-
-use ff::PrimeField;
-use group::{prime::PrimeCurveAffine, Group};
-use log::{error, info};
-use pairing::Engine;
-use rust_gpu_tools::{program_closures, Device, Program};
-
 use std::any::TypeId;
 use std::ops::AddAssign;
 use std::sync::{Arc, RwLock};
+
+use ff::PrimeField;
+use group::{Group, prime::PrimeCurveAffine};
+use log::{error, info};
+use pairing::Engine;
+use rust_gpu_tools::{Device, Program, program_closures};
+
+use crate::multicore::Worker;
+use crate::multiexp::{FullDensity, multiexp as cpu_multiexp};
+
+use super::{GpuEngine, locks, program, utils};
+use super::error::{GPUError, GPUResult};
 
 const MAX_WINDOW_SIZE: usize = 10;
 const LOCAL_WORK_SIZE: usize = 256;
@@ -33,8 +34,8 @@ pub fn get_cpu_utilization() -> f64 {
 
 // Multiexp kernel for a single GPU
 pub struct SingleMultiexpKernel<E>
-where
-    E: Engine + GpuEngine,
+    where
+        E: Engine + GpuEngine,
 {
     program: Program,
     core_count: usize,
@@ -80,8 +81,8 @@ fn calc_best_chunk_size(max_window_size: usize, core_count: usize, exp_bits: usi
 }
 
 fn calc_chunk_size<E>(mem: u64, core_count: usize) -> usize
-where
-    E: Engine,
+    where
+        E: Engine,
 {
     let aff_size = std::mem::size_of::<E::G1Affine>() + std::mem::size_of::<E::G2Affine>();
     let exp_size = exp_size::<E>();
@@ -96,8 +97,8 @@ fn exp_size<E: Engine>() -> usize {
 }
 
 impl<E> SingleMultiexpKernel<E>
-where
-    E: Engine + GpuEngine,
+    where
+        E: Engine + GpuEngine,
 {
     pub fn create(device: &Device, priority: bool) -> GPUResult<SingleMultiexpKernel<E>> {
         let exp_bits = exp_size::<E>() * 8;
@@ -124,8 +125,8 @@ where
         exps: &[<G::Scalar as PrimeField>::Repr],
         n: usize,
     ) -> GPUResult<<G as PrimeCurveAffine>::Curve>
-    where
-        G: PrimeCurveAffine,
+        where
+            G: PrimeCurveAffine,
     {
         if locks::PriorityLock::should_break(self.priority) {
             return Err(GPUError::GPUTaken);
@@ -136,6 +137,17 @@ where
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         let num_groups = calc_num_groups(self.core_count, num_windows);
         let bucket_len = 1 << window_size;
+
+        let size1 = std::mem::size_of::<G>();
+        let size2 = std::mem::size_of::<<G::Scalar as PrimeField>::Repr>();
+        let size3 = std::mem::size_of::<<G as PrimeCurveAffine>::Curve>();
+        let mem1 = size1 * n;
+        let mem2 = size2 * n;
+        //2 * self.core_count =`num_groups` * `num_windows`
+        let mem3 = size3 * num_groups * num_windows * bucket_len;
+        let mem4 = size3 * num_groups * num_windows;
+        println!("---------- SingleMultiexpKernel.multiexp: CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",
+                 size1, size2, size3, mem1, mem2, mem3, mem4, (mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
@@ -216,16 +228,16 @@ where
 
 // A struct that containts several multiexp kernels for different devices
 pub struct MultiexpKernel<E>
-where
-    E: Engine + GpuEngine,
+    where
+        E: Engine + GpuEngine,
 {
     kernels: Vec<SingleMultiexpKernel<E>>,
     _lock: locks::GPULock, // RFC 1857: struct fields are dropped in the same order as they are declared.
 }
 
 impl<E> MultiexpKernel<E>
-where
-    E: Engine + GpuEngine,
+    where
+        E: Engine + GpuEngine,
 {
     pub fn create(priority: bool) -> GPUResult<MultiexpKernel<E>> {
         let lock = locks::GPULock::lock();
@@ -275,8 +287,8 @@ where
         skip: usize,
         n: usize,
     ) -> GPUResult<<G as PrimeCurveAffine>::Curve>
-    where
-        G: PrimeCurveAffine<Scalar = E::Fr>,
+        where
+            G: PrimeCurveAffine<Scalar=E::Fr>,
     {
         let num_devices = self.kernels.len();
         // Bases are skipped by `self.1` elements, when converted from (Arc<Vec<G>>, usize) to Source

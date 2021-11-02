@@ -1,27 +1,28 @@
+use std::fmt;
 use std::ops::{AddAssign, Mul, MulAssign};
 use std::sync::Arc;
 use std::time::Instant;
 
 use ff::{Field, PrimeField};
-use group::{prime::PrimeCurveAffine, Curve};
+use group::{Curve, prime::PrimeCurveAffine};
+use log::{debug, info};
+#[cfg(any(feature = "cuda", feature = "opencl"))]
+use log::trace;
 use pairing::MultiMillerLoop;
 use rand_core::RngCore;
 use rayon::prelude::*;
 
-use super::{ParameterSource, Proof};
+use crate::{
+    BELLMAN_VERSION, Circuit, ConstraintSystem, Index, LinearCombination, SynthesisError, Variable,
+};
 use crate::domain::EvaluationDomain;
 use crate::gpu::{self, LockedFFTKernel, LockedMultiexpKernel};
-use crate::multicore::{Worker, THREAD_POOL};
-use crate::multiexp::{multiexp, DensityTracker, FullDensity};
-use crate::{
-    Circuit, ConstraintSystem, Index, LinearCombination, SynthesisError, Variable, BELLMAN_VERSION,
-};
-#[cfg(any(feature = "cuda", feature = "opencl"))]
-use log::trace;
-use log::{debug, info};
-
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 use crate::gpu::PriorityLock;
+use crate::multicore::{THREAD_POOL, Worker};
+use crate::multiexp::{DensityTracker, FullDensity, multiexp};
+
+use super::{ParameterSource, Proof};
 
 struct ProvingAssignment<Scalar: PrimeField> {
     // Density of queries
@@ -38,7 +39,6 @@ struct ProvingAssignment<Scalar: PrimeField> {
     input_assignment: Vec<Scalar>,
     aux_assignment: Vec<Scalar>,
 }
-use std::fmt;
 
 impl<Scalar: PrimeField> fmt::Debug for ProvingAssignment<Scalar> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
@@ -106,10 +106,10 @@ impl<Scalar: PrimeField> ConstraintSystem<Scalar> for ProvingAssignment<Scalar> 
     }
 
     fn alloc<F, A, AR>(&mut self, _: A, f: F) -> Result<Variable, SynthesisError>
-    where
-        F: FnOnce() -> Result<Scalar, SynthesisError>,
-        A: FnOnce() -> AR,
-        AR: Into<String>,
+        where
+            F: FnOnce() -> Result<Scalar, SynthesisError>,
+            A: FnOnce() -> AR,
+            AR: Into<String>,
     {
         self.aux_assignment.push(f()?);
         self.a_aux_density.add_element();
@@ -119,10 +119,10 @@ impl<Scalar: PrimeField> ConstraintSystem<Scalar> for ProvingAssignment<Scalar> 
     }
 
     fn alloc_input<F, A, AR>(&mut self, _: A, f: F) -> Result<Variable, SynthesisError>
-    where
-        F: FnOnce() -> Result<Scalar, SynthesisError>,
-        A: FnOnce() -> AR,
-        AR: Into<String>,
+        where
+            F: FnOnce() -> Result<Scalar, SynthesisError>,
+            A: FnOnce() -> AR,
+            AR: Into<String>,
     {
         self.input_assignment.push(f()?);
         self.b_input_density.add_element();
@@ -131,12 +131,12 @@ impl<Scalar: PrimeField> ConstraintSystem<Scalar> for ProvingAssignment<Scalar> 
     }
 
     fn enforce<A, AR, LA, LB, LC>(&mut self, _: A, a: LA, b: LB, c: LC)
-    where
-        A: FnOnce() -> AR,
-        AR: Into<String>,
-        LA: FnOnce(LinearCombination<Scalar>) -> LinearCombination<Scalar>,
-        LB: FnOnce(LinearCombination<Scalar>) -> LinearCombination<Scalar>,
-        LC: FnOnce(LinearCombination<Scalar>) -> LinearCombination<Scalar>,
+        where
+            A: FnOnce() -> AR,
+            AR: Into<String>,
+            LA: FnOnce(LinearCombination<Scalar>) -> LinearCombination<Scalar>,
+            LB: FnOnce(LinearCombination<Scalar>) -> LinearCombination<Scalar>,
+            LC: FnOnce(LinearCombination<Scalar>) -> LinearCombination<Scalar>,
     {
         let a = a(LinearCombination::zero());
         let b = b(LinearCombination::zero());
@@ -182,9 +182,9 @@ impl<Scalar: PrimeField> ConstraintSystem<Scalar> for ProvingAssignment<Scalar> 
     }
 
     fn push_namespace<NR, N>(&mut self, _: N)
-    where
-        NR: Into<String>,
-        N: FnOnce() -> NR,
+        where
+            NR: Into<String>,
+            N: FnOnce() -> NR,
     {
         // Do nothing; we don't care about namespaces in this context.
     }
@@ -223,10 +223,10 @@ pub fn create_random_proof_batch_priority<E, C, R, P: ParameterSource<E>>(
     rng: &mut R,
     priority: bool,
 ) -> Result<Vec<Proof<E>>, SynthesisError>
-where
-    E: gpu::GpuEngine + MultiMillerLoop,
-    C: Circuit<E::Fr> + Send,
-    R: RngCore,
+    where
+        E: gpu::GpuEngine + MultiMillerLoop,
+        C: Circuit<E::Fr> + Send,
+        R: RngCore,
 {
     let r_s = (0..circuits.len())
         .map(|_| E::Fr::random(&mut *rng))
@@ -246,9 +246,9 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
     s_s: Vec<E::Fr>,
     priority: bool,
 ) -> Result<Vec<Proof<E>>, SynthesisError>
-where
-    E: gpu::GpuEngine + MultiMillerLoop,
-    C: Circuit<E::Fr> + Send,
+    where
+        E: gpu::GpuEngine + MultiMillerLoop,
+        C: Circuit<E::Fr> + Send,
 {
     info!("Bellperson {} is being used!", BELLMAN_VERSION);
 
@@ -295,13 +295,14 @@ where
     }
 
     #[cfg(any(feature = "cuda", feature = "opencl"))]
-    let prio_lock = if priority {
+        let prio_lock = if priority {
         trace!("acquiring priority lock");
         Some(PriorityLock::lock())
     } else {
         None
     };
-
+    let start = Instant::now();
+    println!("====== calculate a_s start...");
     let mut a_s = Vec::with_capacity(num_circuits);
     let mut params_h = None;
     let worker = &worker;
@@ -321,10 +322,14 @@ where
         }
         Ok(())
     })?;
+    println!("====== calculate a_s end duration:{:?}", start.elapsed());
+
 
     let mut multiexp_kern = Some(LockedMultiexpKernel::<E>::new(log_d, priority));
-    let params_h = params_h.unwrap()?;
 
+    let start = Instant::now();
+    println!("====== calculate h_s start...");
+    let params_h = params_h.unwrap()?;
     let mut h_s = Vec::with_capacity(num_circuits);
     let mut params_l = None;
 
@@ -346,7 +351,10 @@ where
             ));
         }
     });
+    println!("====== calculate h_s end duration:{:?}", start.elapsed());
 
+    let start = Instant::now();
+    println!("====== calculate l_s start...");
     let params_l = params_l.unwrap()?;
 
     let mut l_s = Vec::with_capacity(num_circuits);
@@ -379,7 +387,10 @@ where
             ));
         }
     });
+    println!("====== calculate l_s end duration:{:?}", start.elapsed());
 
+    let start = Instant::now();
+    println!("====== calculate inputs start...");
     debug!("get_a b_g1 b_g2");
     let (a_inputs_source, a_aux_source) = params_a.unwrap()?;
     let (b_g1_inputs_source, b_g1_aux_source) = params_b_g1.unwrap()?;
@@ -451,6 +462,8 @@ where
             )
         })
         .collect::<Vec<_>>();
+    println!("====== calculate inputs end duration:{:?}", start.elapsed());
+
     drop(multiexp_kern);
     drop(a_inputs_source);
     drop(a_aux_source);
@@ -468,9 +481,9 @@ where
         .zip(s_s.into_iter())
         .map(
             |(
-                (((h, l), (a_inputs, a_aux, b_g1_inputs, b_g1_aux, b_g2_inputs, b_g2_aux)), r),
-                s,
-            )| {
+                 (((h, l), (a_inputs, a_aux, b_g1_inputs, b_g1_aux, b_g2_inputs, b_g2_aux)), r),
+                 s,
+             )| {
                 if (vk.delta_g1.is_identity() | vk.delta_g2.is_identity()).into() {
                     // If this element is zero, someone is trying to perform a
                     // subversion-CRS attack.
@@ -517,10 +530,10 @@ where
         .collect::<Result<Vec<_>, SynthesisError>>()?;
 
     #[cfg(any(feature = "cuda", feature = "opencl"))]
-    {
-        trace!("dropping priority lock");
-        drop(prio_lock);
-    }
+        {
+            trace!("dropping priority lock");
+            drop(prio_lock);
+        }
 
     let proof_time = start.elapsed();
     info!("prover time: {:?}", proof_time);
@@ -533,8 +546,8 @@ fn execute_fft<E>(
     prover: &mut ProvingAssignment<E::Fr>,
     fft_kern: &mut Option<LockedFFTKernel<E>>,
 ) -> Result<Arc<Vec<<E::Fr as PrimeField>::Repr>>, SynthesisError>
-where
-    E: gpu::GpuEngine + MultiMillerLoop,
+    where
+        E: gpu::GpuEngine + MultiMillerLoop,
 {
     let mut a = EvaluationDomain::from_coeffs(std::mem::replace(&mut prover.a, Vec::new()))?;
     let mut b = EvaluationDomain::from_coeffs(std::mem::replace(&mut prover.b, Vec::new()))?;
@@ -573,9 +586,9 @@ fn create_proof_batch_priority_inner<Scalar, C>(
     ),
     SynthesisError,
 >
-where
-    Scalar: PrimeField,
-    C: Circuit<Scalar> + Send,
+    where
+        Scalar: PrimeField,
+        C: Circuit<Scalar> + Send,
 {
     let start = Instant::now();
     let mut provers = circuits
@@ -632,12 +645,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use blstrs::Scalar as Fr;
     use rand::Rng;
     use rand_core::SeedableRng;
     use rand_xorshift::XorShiftRng;
+
+    use super::*;
 
     #[test]
     fn test_proving_assignment_extend() {
