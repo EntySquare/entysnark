@@ -302,7 +302,7 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
         None
     };
     let now = Instant::now();
-    println!("====== calculate a_s start...");
+    info!("calculate a_s start...");
     let mut a_s = Vec::with_capacity(num_circuits);
     let mut params_h = None;
     let worker = &worker;
@@ -322,13 +322,13 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
         }
         Ok(())
     })?;
-    println!("====== calculate a_s end duration:{:?}", now.elapsed());
+    info!("calculate a_s end duration:{:?}", now.elapsed());
 
 
     let mut multiexp_kern = Some(LockedMultiexpKernel::<E>::new(log_d, priority));
 
     let now = Instant::now();
-    println!("====== calculate h_s start...");
+    info!("calculate h_s start...");
     let params_h = params_h.unwrap()?;
     let mut h_s = Vec::with_capacity(num_circuits);
     let mut params_l = None;
@@ -351,10 +351,10 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
             ));
         }
     });
-    println!("====== calculate h_s end duration:{:?}", now.elapsed());
+    info!("calculate h_s end duration:{:?}", now.elapsed());
 
     let now = Instant::now();
-    println!("====== calculate l_s start...");
+    info!("calculate l_s start...");
     let params_l = params_l.unwrap()?;
 
     let mut l_s = Vec::with_capacity(num_circuits);
@@ -387,10 +387,10 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
             ));
         }
     });
-    println!("====== calculate l_s end duration:{:?}", now.elapsed());
+    info!("calculate l_s end duration:{:?}", now.elapsed());
 
     let now = Instant::now();
-    println!("====== calculate inputs start...");
+    info!("calculate inputs start...");
     debug!("get_a b_g1 b_g2");
     let (a_inputs_source, a_aux_source) = params_a.unwrap()?;
     let (b_g1_inputs_source, b_g1_aux_source) = params_b_g1.unwrap()?;
@@ -462,7 +462,7 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
             )
         })
         .collect::<Vec<_>>();
-    println!("====== calculate inputs end duration:{:?}", now.elapsed());
+    info!("calculate inputs end duration:{:?}", now.elapsed());
 
     drop(multiexp_kern);
     drop(a_inputs_source);
