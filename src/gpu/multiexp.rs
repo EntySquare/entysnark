@@ -211,7 +211,7 @@ impl<E> SingleMultiexpKernel<E>
 
                 let mut results =
                     vec![<G as PrimeCurveAffine>::Curve::identity(); 2 * self.core_count];
-                info!("result_buffer len:{} , results len: {}",&result_buffer.length,results.len());
+                info!("results len: {}",results.len());
                 program.read_into_buffer(&result_buffer, &mut results)?;
 
                 Ok(results)
