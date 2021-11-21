@@ -131,7 +131,7 @@ impl<E> SingleMultiexpKernel<E>
         if locks::PriorityLock::should_break(self.priority) {
             return Err(GPUError::GPUTaken);
         }
-        debug!("bases.length:{} , n:{}", bases.len,n);
+        debug!("bases.length:{} , n:{}", bases.len(),n);
         let exp_bits = exp_size::<E>() * 8;
         let window_size = calc_window_size(n as usize, exp_bits, self.core_count);
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
