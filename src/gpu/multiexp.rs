@@ -56,47 +56,47 @@ pub struct SingleMultiexpKernel<E>
 //     2 * core_count / num_windows
 // }
 
-fn calc_window_size(n: usize, exp_bits: usize, core_count: usize) -> usize {
-    // window_size = ln(n / num_groups)
-    // num_windows = exp_bits / window_size
-    // num_groups = 2 * core_count / num_windows = 2 * core_count * window_size / exp_bits
-    // window_size = ln(n / num_groups) = ln(n * exp_bits / (2 * core_count * window_size))
-    // window_size = ln(exp_bits * n / (2 * core_count)) - ln(window_size)
-    //
-    // Thus we need to solve the following equation:
-    // window_size + ln(window_size) = ln(exp_bits * n / (2 * core_count))
-    let lower_bound = (((exp_bits * n) as f64) / ((2 * core_count) as f64)).ln();
-    for w in 0..MAX_WINDOW_SIZE {
-        if (w as f64) + (w as f64).ln() > lower_bound {
-            return w;
-        }
-    }
-
-    MAX_WINDOW_SIZE
-}
-
-fn calc_best_chunk_size(max_window_size: usize, core_count: usize, exp_bits: usize) -> usize {
-    // Best chunk-size (N) can also be calculated using the same logic as calc_window_size:
-    // n = e^window_size * window_size * 2 * core_count / exp_bits
-    (((max_window_size as f64).exp() as f64)
-        * (max_window_size as f64)
-        * 2f64
-        * (core_count as f64)
-        / (exp_bits as f64))
-        .ceil() as usize
-}
-
-fn calc_chunk_size<E>(mem: u64, core_count: usize) -> usize
-    where
-        E: Engine,
-{
-    let aff_size = std::mem::size_of::<E::G1Affine>() + std::mem::size_of::<E::G2Affine>();
-    let exp_size = exp_size::<E>();
-    let proj_size = std::mem::size_of::<E::G1>() + std::mem::size_of::<E::G2>();
-    ((((mem as f64) * (1f64 - MEMORY_PADDING)) as usize)
-        - (2 * core_count * ((1 << MAX_WINDOW_SIZE) + 1) * proj_size))
-        / (aff_size + exp_size)
-}
+// fn calc_window_size(n: usize, exp_bits: usize, core_count: usize) -> usize {
+//     // window_size = ln(n / num_groups)
+//     // num_windows = exp_bits / window_size
+//     // num_groups = 2 * core_count / num_windows = 2 * core_count * window_size / exp_bits
+//     // window_size = ln(n / num_groups) = ln(n * exp_bits / (2 * core_count * window_size))
+//     // window_size = ln(exp_bits * n / (2 * core_count)) - ln(window_size)
+//     //
+//     // Thus we need to solve the following equation:
+//     // window_size + ln(window_size) = ln(exp_bits * n / (2 * core_count))
+//     let lower_bound = (((exp_bits * n) as f64) / ((2 * core_count) as f64)).ln();
+//     for w in 0..MAX_WINDOW_SIZE {
+//         if (w as f64) + (w as f64).ln() > lower_bound {
+//             return w;
+//         }
+//     }
+//
+//     MAX_WINDOW_SIZE
+// }
+//
+// fn calc_best_chunk_size(max_window_size: usize, core_count: usize, exp_bits: usize) -> usize {
+//     // Best chunk-size (N) can also be calculated using the same logic as calc_window_size:
+//     // n = e^window_size * window_size * 2 * core_count / exp_bits
+//     (((max_window_size as f64).exp() as f64)
+//         * (max_window_size as f64)
+//         * 2f64
+//         * (core_count as f64)
+//         / (exp_bits as f64))
+//         .ceil() as usize
+// }
+//
+// fn calc_chunk_size<E>(mem: u64, core_count: usize) -> usize
+//     where
+//         E: Engine,
+// {
+//     let aff_size = std::mem::size_of::<E::G1Affine>() + std::mem::size_of::<E::G2Affine>();
+//     let exp_size = exp_size::<E>();
+//     let proj_size = std::mem::size_of::<E::G1>() + std::mem::size_of::<E::G2>();
+//     ((((mem as f64) * (1f64 - MEMORY_PADDING)) as usize)
+//         - (2 * core_count * ((1 << MAX_WINDOW_SIZE) + 1) * proj_size))
+//         / (aff_size + exp_size)
+// }
 
 fn exp_size<E: Engine>() -> usize {
     std::mem::size_of::<<E::Fr as ff::PrimeField>::Repr>()
@@ -107,7 +107,7 @@ impl<E> SingleMultiexpKernel<E>
         E: Engine + GpuEngine,
 {
     pub fn create(device: &Device, priority: bool) -> GPUResult<SingleMultiexpKernel<E>> {
-        let exp_bits = exp_size::<E>() * 8;
+        //let exp_bits = exp_size::<E>() * 8;
         //let core_count = utils::get_core_count(&device.name());
         //info!("core_count: {}", core_count);
         let core_count = 8704;
