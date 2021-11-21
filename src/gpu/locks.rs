@@ -38,7 +38,7 @@ impl GPULock {
             // glock.lock_exclusive().unwrap();
             let devs = Device::all();
             for dev in &devs {
-                println!(
+                debug!(
                     "Device {}-{}: {:?} ",
                     dev.name(),
                     dev.unique_id(),
@@ -46,7 +46,7 @@ impl GPULock {
                 );
             }
             for dev in devs {
-                println!(
+                debug!(
                     "try get Device {}-{}: {:?} ",
                     dev.name(),
                     dev.unique_id(),
