@@ -113,8 +113,12 @@ version = "1.0.10"
 
 [dependencies.yastl]
 version = "0.1.2"
+
 [dev-dependencies.criterion]
 version = "0.3.2"
+
+[dependencies.scoped_threadpool]
+version = "0.1.*"
 
 [dev-dependencies.csv]
 version = "1.1.5"
