@@ -111,11 +111,11 @@ impl<E> SingleMultiexpKernel<E>
         //let core_count = utils::get_core_count(&device.name());
         //info!("core_count: {}", core_count);
         let core_count = 8704;
-        let mem = device.memory();
-        let max_n = calc_chunk_size::<E>(mem, core_count);
-        let best_n = calc_best_chunk_size(MAX_WINDOW_SIZE, core_count, exp_bits);
-        let n = std::cmp::min(max_n, best_n);
-        //let n = 33554466;
+        // let mem = device.memory();
+        // let max_n = calc_chunk_size::<E>(mem, core_count);
+        // let best_n = calc_best_chunk_size(MAX_WINDOW_SIZE, core_count, exp_bits);
+        // let n = std::cmp::min(max_n, best_n);
+        let n = 33554466;
         //let n = 16777216;
         let program = program::program::<E>(device)?;
 
@@ -133,6 +133,7 @@ impl<E> SingleMultiexpKernel<E>
         bases: &[G],
         exps: &[<G::Scalar as PrimeField>::Repr],
         n: usize,
+        set_window_size: usize,
     ) -> GPUResult<<G as PrimeCurveAffine>::Curve>
         where
             G: PrimeCurveAffine,
@@ -142,8 +143,8 @@ impl<E> SingleMultiexpKernel<E>
         }
 
         let exp_bits = exp_size::<E>() * 8;
-        let window_size = calc_window_size(n as usize, exp_bits, self.core_count);
-        //let window_size = set_window_size;
+        //let window_size = calc_window_size(n as usize, exp_bits, self.core_count);
+        let window_size = set_window_size;
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         // let num_groups = calc_num_groups(self.core_count, num_windows);
         let num_groups = 2 * self.core_count / num_windows;
@@ -152,12 +153,12 @@ impl<E> SingleMultiexpKernel<E>
         let size1 = std::mem::size_of::<G>();
         let size2 = std::mem::size_of::<<G::Scalar as PrimeField>::Repr>();
         let size3 = std::mem::size_of::<<G as PrimeCurveAffine>::Curve>();
-        let mem1 = size1 * n ;
+        let mem1 = size1 * n;
         let mem2 = size2 * n;
         //2 * self.core_count =`num_groups` * `num_windows`
         let mem3 = size3 * 2 * self.core_count * bucket_len;
         let mem4 = size3 * 2 * self.core_count;
-        debug!("bases.len() : {}, n:{}", bases.len(),n );
+        debug!("bases.len() : {}, n:{}", bases.len(), n);
         debug!("CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",
                size1, size2, size3, mem1, mem2, mem3, mem4, (mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
 
@@ -211,7 +212,6 @@ impl<E> SingleMultiexpKernel<E>
 
                 let mut results =
                     vec![<G as PrimeCurveAffine>::Curve::identity(); 2 * self.core_count];
-                info!("results len: {}",results.len());
                 program.read_into_buffer(&result_buffer, &mut results)?;
 
                 Ok(results)
@@ -339,17 +339,17 @@ impl<E> MultiexpKernel<E>
                         .zip(self.kernels.par_iter_mut())
                         .map(|((bases, exps), kern)| -> Result<<G as PrimeCurveAffine>::Curve, GPUError> {
                             let mut acc = <G as PrimeCurveAffine>::Curve::identity();
-                            // let single_chunk_size = (kern.n as f64 *(1 as f64 - get_cpu_utilization()) as f64).ceil() as usize;
-                            // let mut set_window_size = 11; //grouprate=>window_size : 2=>11,4=>11,8=>10,16=>9
-                            // let size_result = std::mem::size_of::<<G as PrimeCurveAffine>::Curve>();
-                            // if size_result > 144 {
-                            //     set_window_size = 8; //grouprate=>window_size : 2=>8,4=>8,8=>8,16=>7
-                            // }
+                            let single_chunk_size = (kern.n as f64 * (1 as f64 - get_cpu_utilization()) as f64).ceil() as usize;
+                            let mut set_window_size = 11; //grouprate=>window_size : 2=>11,4=>11,8=>10,16=>9
+                            let size_result = std::mem::size_of::<<G as PrimeCurveAffine>::Curve>();
+                            if size_result > 144 {
+                                set_window_size = 8; //grouprate=>window_size : 2=>8,4=>8,8=>8,16=>7
+                            }
                             let mut times: u32 = 1;
-                            for (bases, exps) in bases.chunks(kern.n).zip(exps.chunks(kern.n)) {
+                            for (bases, exps) in bases.chunks(single_chunk_size).zip(exps.chunks(single_chunk_size)) {
                                 let now = Instant::now();
                                 debug!("par[{}] Single multiexp start... ", times);
-                                let result = kern.multiexp(bases, exps, bases.len())?;
+                                let result = kern.multiexp(bases, exps, bases.len(), set_window_size)?;
                                 debug!("par[{}] Single multiexp end cost:{:?}", times, now.elapsed());
                                 times += 1;
                                 acc.add_assign(&result);
