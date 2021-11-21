@@ -116,7 +116,7 @@ impl<E> SingleMultiexpKernel<E>
         let best_n = calc_best_chunk_size(MAX_WINDOW_SIZE, core_count, exp_bits);
         let n = std::cmp::min(max_n, best_n);
         //let n = 33554466;
-        let n = 16777216;
+        //let n = 16777216;
         let program = program::program::<E>(device)?;
 
         Ok(SingleMultiexpKernel {
@@ -152,13 +152,14 @@ impl<E> SingleMultiexpKernel<E>
         let size1 = std::mem::size_of::<G>();
         let size2 = std::mem::size_of::<<G::Scalar as PrimeField>::Repr>();
         let size3 = std::mem::size_of::<<G as PrimeCurveAffine>::Curve>();
-        let mem1 = size1 * n;
-        let mem2 = size2 * n;
+        let mem1 = size1 * n / (1024 * 1024);
+        let mem2 = size2 * n / (1024 * 1024);
         //2 * self.core_count =`num_groups` * `num_windows`
-        let mem3 = size3 * num_groups * num_windows * bucket_len;
-        let mem4 = size3 * num_groups * num_windows;
-        debug!(" CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",
-               size1, size2, size3, mem1, mem2, mem3, mem4, (mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
+        let mem3 = size3 * num_groups * num_windows * bucket_len / (1024 * 1024);
+        let mem4 = size3 * num_groups * num_windows / (1024 * 1024);
+        debug!("bases.len() : {}, n:{}", bases.len(),n );
+        debug!("CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{}Mbyte ,mem2:{}Mbyte ,mem3:{}Mbyte ,mem4:{}Mbyte ,GPU mem need: {}Mbyte",
+               size1, size2, size3, mem1, mem2, mem3, mem4, (mem1 + mem2 + mem3 + mem4) );
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
