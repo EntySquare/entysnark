@@ -334,7 +334,6 @@ impl<E> MultiexpKernel<E>
                         .zip(exps.par_chunks(chunk_size))
                         .zip(self.kernels.par_iter_mut())
                         .map(|((bases, exps), kern)| -> Result<<G as PrimeCurveAffine>::Curve, GPUError> {
-                            let bus_id = kern.
                             let mut acc = <G as PrimeCurveAffine>::Curve::identity();
                             let single_chunk_size = (kern.n as f64 *(1 as f64 - get_cpu_utilization()) as f64).ceil() as usize;
                             let mut set_window_size = 11; //grouprate=>window_size : 2=>11,4=>11,8=>10,16=>9
@@ -382,7 +381,9 @@ impl<E> MultiexpKernel<E>
         // waiting results...
         let results = rx_gpu.recv().unwrap();
         let cpu_r = rx_cpu.recv().unwrap();
+
         let mut acc = <G as PrimeCurveAffine>::Curve::identity();
+
         for r in results {
             match r {
                 Ok(r) => acc.add_assign(&r),
