@@ -132,6 +132,7 @@ where
 {
     pub fn create(priority: bool) -> GPUResult<FFTKernel<E>> {
         let lock = locks::GPULock::lock();
+        let lock_id = lock.id();
 
         let kernels: Vec<_> = Device::all()
             .iter()
@@ -144,7 +145,11 @@ where
                         e
                     );
                 }
-                kernel.ok()
+                if device.unique_id() == lock_id {
+                    kernel.ok()
+                }else{
+                    None
+                }
             })
             .collect();
 

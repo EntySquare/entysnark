@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 
 use ff::PrimeField;
 use group::{Group, prime::PrimeCurveAffine};
-use log::{error, info};
+use log::{error, info,debug};
 use pairing::Engine;
 use rust_gpu_tools::{Device, Program, program_closures};
 
@@ -146,7 +146,7 @@ impl<E> SingleMultiexpKernel<E>
         //2 * self.core_count =`num_groups` * `num_windows`
         let mem3 = size3 * num_groups * num_windows * bucket_len;
         let mem4 = size3 * num_groups * num_windows;
-        info!(" CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",
+        debug!(" CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",
                  size1, size2, size3, mem1, mem2, mem3, mem4, (mem1 + mem2 + mem3 + mem4) / (1024 * 1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
@@ -241,6 +241,7 @@ impl<E> MultiexpKernel<E>
 {
     pub fn create(priority: bool) -> GPUResult<MultiexpKernel<E>> {
         let lock = locks::GPULock::lock();
+        let lock_id = lock.id();
 
         let kernels: Vec<_> = Device::all()
             .iter()
@@ -253,7 +254,11 @@ impl<E> MultiexpKernel<E>
                         e
                     );
                 }
-                kernel.ok()
+                if device.unique_id() == lock_id {
+                    kernel.ok()
+                }else{
+                    None
+                }
             })
             .collect();
 
