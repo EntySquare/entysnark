@@ -131,23 +131,23 @@ impl<E> SingleMultiexpKernel<E>
         if locks::PriorityLock::should_break(self.priority) {
             return Err(GPUError::GPUTaken);
         }
-
+        debug!("bases.length:{} , n:{}", bases.len,n);
         let exp_bits = exp_size::<E>() * 8;
         let window_size = calc_window_size(n as usize, exp_bits, self.core_count);
         let num_windows = ((exp_bits as f64) / (window_size as f64)).ceil() as usize;
         let num_groups = calc_num_groups(self.core_count, num_windows);
         let bucket_len = 1 << window_size;
-
+        debug!("exp_bits:{} , window_size:{}, num_windows:{}, num_groups:{}, bucket_len:{}", exp_bits,window_size,num_windows,num_groups,bucket_len);
         let size1 = std::mem::size_of::<G>();
         let size2 = std::mem::size_of::<<G::Scalar as PrimeField>::Repr>();
         let size3 = std::mem::size_of::<<G as PrimeCurveAffine>::Curve>();
-        let mem1 = size1 * n/ (1024 * 1024);
-        let mem2 = size2 * n/ (1024 * 1024);
+        let mem1 = size1 * n;
+        let mem2 = size2 * n;
         //2 * self.core_count =`num_groups` * `num_windows`
-        let mem3 = size3 * num_groups * num_windows * bucket_len/ (1024 * 1024);
-        let mem4 = size3 * num_groups * num_windows/ (1024 * 1024);
-        debug!(" CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{}Mbyte ,mem2:{}Mbyte ,mem3:{}Mbyte ,mem4:{} Mbyte,GPU mem need: {}Mbyte",
-               size1, size2, size3, mem1, mem2, mem3, mem4, (mem1 + mem2 + mem3 + mem4) );
+        let mem3 = size3 * num_groups * num_windows * bucket_len;
+        let mem4 = size3 * num_groups * num_windows;
+        debug!(" CurveAffine size1:{} ,PrimeField size2:{} ,Projective size3:{} ,mem1:{} ,mem2:{} ,mem3:{} ,mem4:{} ,GPU mem need: {}Mbyte",
+               size1, size2, size3, mem1, mem2, mem3, mem4, (mem1 + mem2 + mem3 + mem4) (1024 * 1024));
 
         // Each group will have `num_windows` threads and as there are `num_groups` groups, there will
         // be `num_groups` * `num_windows` threads in total.
