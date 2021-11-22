@@ -46,17 +46,18 @@ impl GPULock {
                 );
             }
             for dev in devs {
-                debug!(
-                    "try get Device {}-{}: {:?} ",
-                    dev.name(),
-                    dev.unique_id(),
-                    dev.vendor()
-                );
+
                 let id = dev.unique_id();
                 let lock = gpu_lock_path(GPU_LOCK_NAME, id);
                 let lock = File::create(&lock)
                     .unwrap_or_else(|_| panic!("Cannot create GPU lock file at {:?}", &lock));
                 if lock.try_lock_exclusive().is_ok() {
+                    info!(
+                        "Available Device {}-{}: {:?} ",
+                        dev.name(),
+                        dev.unique_id(),
+                        dev.vendor()
+                    );
                     return GPULock(lock, id);
                 }
             }

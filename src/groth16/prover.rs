@@ -320,9 +320,9 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
         let mut index = 1;
         for prover in provers_ref {
             let par = Instant::now();
-            info!("prover[{}] Single multiexp start... ", index);
+            info!("par[{}] execute_fft start... ", index);
             a_s.push(execute_fft(worker, prover, &mut fft_kern)?);
-            info!("prover[{}] Single multiexp end cost:{:?}", index,par.elapsed());
+            info!("par[{}] execute_fft end cost:{:?}", index,par.elapsed());
             index += 1;
         }
         Ok(())
@@ -346,7 +346,10 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
         });
 
         debug!("multiexp h");
+        let mut index = 1;
         for a in a_s.into_iter() {
+            let par = Instant::now();
+            info!("par[{}] multiexp start... ", index);
             h_s.push(multiexp(
                 &worker,
                 params_h.clone(),
@@ -354,6 +357,8 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
                 a,
                 &mut multiexp_kern,
             ));
+            info!("par[{}] multiexp end cost:{:?}", index,par.elapsed());
+            index += 1;
         }
     });
     info!("calculate h_s end duration:{:?}", now.elapsed());
@@ -382,7 +387,10 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
         });
 
         debug!("multiexp l");
+        let mut index = 1;
         for aux in aux_assignments.iter() {
+            let par = Instant::now();
+            info!("par[{}] multiexp start... ", index);
             l_s.push(multiexp(
                 &worker,
                 params_l.clone(),
@@ -390,6 +398,8 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
                 aux.clone(),
                 &mut multiexp_kern,
             ));
+            info!("par[{}] multiexp end cost:{:?}", index,par.elapsed());
+            index += 1;
         }
     });
     info!("calculate l_s end duration:{:?}", now.elapsed());
@@ -407,6 +417,8 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
         .zip(input_assignments.iter())
         .zip(aux_assignments.iter())
         .map(|((prover, input_assignment), aux_assignment)| {
+            let par = Instant::now();
+            info!("inputs multiexp start... ");
             let a_inputs = multiexp(
                 &worker,
                 a_inputs_source.clone(),
@@ -456,7 +468,7 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
                 aux_assignment.clone(),
                 &mut multiexp_kern,
             );
-
+            info!("inputs multiexp end cost:{:?}", par.elapsed());
             (
                 a_inputs,
                 a_aux,

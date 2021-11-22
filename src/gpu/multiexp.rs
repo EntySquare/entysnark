@@ -276,13 +276,13 @@ impl<E> MultiexpKernel<E>
         if kernels.is_empty() {
             return Err(GPUError::Simple("No working GPUs found!"));
         }
-        info!(
+        debug!(
             "Multiexp: {} working device(s) selected. (CPU utilization: {})",
             kernels.len(),
             get_cpu_utilization()
         );
         for (i, k) in kernels.iter().enumerate() {
-            info!(
+            debug!(
                 "Multiexp: Device {}: {} (Chunk-size: {})",
                 i,
                 k.program.device_name(),
@@ -328,7 +328,7 @@ impl<E> MultiexpKernel<E>
             // GPU
             scoped.execute(move || {
                 let start = Instant::now();
-                info!("scoped: gpu multiexp start...");
+                debug!("scoped: gpu multiexp start...");
                 let results = if n > 0 {
                     // println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
                     bases
@@ -358,13 +358,13 @@ impl<E> MultiexpKernel<E>
                 } else {
                     Vec::new()
                 };
-                info!("scoped: gpu multiexp end cost:{:?}", start.elapsed());
+                debug!("scoped: gpu multiexp end cost:{:?}", start.elapsed());
                 tx_gpu.send(results).unwrap();
             });
             // CPU
             scoped.execute(move || {
                 let start = Instant::now();
-                info!("scoped: cpu multiexp start...");
+                debug!("scoped: cpu multiexp start...");
                 let cpu_acc = cpu_multiexp::<_, _, _, E, _>(
                     &pool,
                     (Arc::new(cpu_bases.to_vec()), 0),
@@ -372,7 +372,7 @@ impl<E> MultiexpKernel<E>
                     Arc::new(cpu_exps.to_vec()),
                     &mut None,
                 );
-                info!("scoped: cpu multiexp end cost:{:?}", start.elapsed());
+                debug!("scoped: cpu multiexp end cost:{:?}", start.elapsed());
                 let cpu_r = cpu_acc.wait().unwrap();
 
                 tx_cpu.send(cpu_r).unwrap();
