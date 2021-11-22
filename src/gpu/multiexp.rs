@@ -260,7 +260,7 @@ impl<E> MultiexpKernel<E>
                 let kernel = SingleMultiexpKernel::<E>::create(device, priority);
                 if let Err(ref e) = kernel {
                     error!(
-                        "Cannot initialize kernel for device '{}'! Error: {}",
+                        "Cannot initialize kernel for device '{}'! Error: {:?}",
                         device.name(),
                         e
                     );
