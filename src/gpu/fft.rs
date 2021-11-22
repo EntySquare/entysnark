@@ -191,7 +191,7 @@ where
         let n = inputs.len();
         let num_devices = self.kernels.len();
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
-
+        debug!("chunk_size:{}",chunk_size);
         let result = Arc::new(RwLock::new(Ok(())));
 
         THREAD_POOL.scoped(|s| {
