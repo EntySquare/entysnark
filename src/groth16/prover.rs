@@ -317,8 +317,13 @@ pub fn create_proof_batch_priority<E, C, P: ParameterSource<E>>(
         });
 
         let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
+        let mut index = 1;
         for prover in provers_ref {
+            let par = Instant::now();
+            info!("prover[{}] Single multiexp start... ", index);
             a_s.push(execute_fft(worker, prover, &mut fft_kern)?);
+            info!("prover[{}] Single multiexp end cost:{:?}", index,par.elapsed());
+            index += 1;
         }
         Ok(())
     })?;

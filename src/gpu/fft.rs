@@ -3,7 +3,7 @@ use std::ops::MulAssign;
 use std::sync::{Arc, RwLock};
 
 use ff::Field;
-use log::{error, info};
+use log::{error, info, debug};
 use pairing::Engine;
 use rust_gpu_tools::{program_closures, Device, LocalBuffer, Program};
 
@@ -12,6 +12,7 @@ use crate::gpu::{
     locks, program, GpuEngine,
 };
 use crate::multicore::THREAD_POOL;
+use std::time::Instant;
 
 const LOG2_MAX_ELEMENTS: usize = 32; // At most 2^32 elements is supported.
 const MAX_LOG2_RADIX: u32 = 8; // Radix256
@@ -205,6 +206,8 @@ where
                     for ((input, omega), log_n) in
                         inputs.iter_mut().zip(omegas.iter()).zip(log_ns.iter())
                     {
+                        let par = Instant::now();
+                        debug!("scope:radix_fft start... ");
                         if result.read().unwrap().is_err() {
                             break;
                         }
@@ -213,6 +216,7 @@ where
                             *result.write().unwrap() = Err(err);
                             break;
                         }
+                        debug!("scope:radix_fft end cost:{:?}",par.elapsed());
                     }
                 });
             }

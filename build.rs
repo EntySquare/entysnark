@@ -1,5 +1,4 @@
 /// The build script is needed to compile the CUDA kernel.
-
 #[cfg(feature = "cuda")]
 fn main() {
     use std::path::PathBuf;
@@ -16,7 +15,7 @@ fn main() {
     let kernel_source = sources::kernel::<Bls12, Limb32>();
 
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR was not set.");
-
+    println!("out_dir:{}", out_dir);
     // Make it possible to override the default options. Though the source and output file is
     // always set automatically.
     let mut nvcc = match env::var("BELLMAN_CUDA_NVCC_ARGS") {
