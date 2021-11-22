@@ -115,8 +115,8 @@ impl<E> SingleMultiexpKernel<E>
         // let max_n = calc_chunk_size::<E>(mem, core_count);
         // let best_n = calc_best_chunk_size(MAX_WINDOW_SIZE, core_count, exp_bits);
         // let n = std::cmp::min(max_n, best_n);
-        let n = 33554466;
-        //let n = 16777216;
+        // let n = 33554466;
+        let n = 16777216;
         let program = program::program::<E>(device)?;
 
         Ok(SingleMultiexpKernel {
@@ -341,7 +341,7 @@ impl<E> MultiexpKernel<E>
                             let mut set_window_size = 11; //grouprate=>window_size : 2=>11,4=>11,8=>10,16=>9
                             let size_result = std::mem::size_of::<<G as PrimeCurveAffine>::Curve>();
                             if size_result > 144 {
-                                set_window_size = 8; //grouprate=>window_size : 2=>8,4=>8,8=>8,16=>7
+                                set_window_size = 9; //grouprate=>window_size : 2=>8,4=>8,8=>8,16=>7
                             }
                             let mut times: u32 = 1;
                             for (bases, exps) in bases.chunks(single_chunk_size).zip(exps.chunks(single_chunk_size)) {
