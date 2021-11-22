@@ -115,8 +115,8 @@ impl<E> SingleMultiexpKernel<E>
         // let max_n = calc_chunk_size::<E>(mem, core_count);
         // let best_n = calc_best_chunk_size(MAX_WINDOW_SIZE, core_count, exp_bits);
         // let n = std::cmp::min(max_n, best_n);
-        // let n = 33554466;
-        let n = 16777216;
+        let n = 33554466;
+        // let n = 16777216;
         let program = program::program::<E>(device)?;
 
         Ok(SingleMultiexpKernel {
