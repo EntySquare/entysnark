@@ -2,7 +2,7 @@ extern crate scoped_threadpool;
 
 use std::any::TypeId;
 use std::ops::AddAssign;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc};
 use std::sync::mpsc;
 use std::time::Instant;
 
@@ -17,12 +17,12 @@ use scoped_threadpool::Pool;
 use crate::multicore::Worker;
 use crate::multiexp::{FullDensity, multiexp as cpu_multiexp};
 
-use super::{GpuEngine, locks, program, utils};
+use super::{GpuEngine, locks, program};
 use super::error::{GPUError, GPUResult};
 
-const MAX_WINDOW_SIZE: usize = 10;
+// const MAX_WINDOW_SIZE: usize = 10;
 const LOCAL_WORK_SIZE: usize = 256;
-const MEMORY_PADDING: f64 = 0.2f64; // Let 20% of GPU memory be free
+// const MEMORY_PADDING: f64 = 0.2f64; // Let 20% of GPU memory be free
 
 pub fn get_cpu_utilization() -> f64 {
     use std::env;
