@@ -7,7 +7,7 @@ use ff::{Field, PrimeField};
 use group::{Curve, prime::PrimeCurveAffine};
 use log::{debug, info};
 #[cfg(any(feature = "cuda", feature = "opencl"))]
-use log::trace;
+//use log::trace;
 use pairing::MultiMillerLoop;
 use rand_core::RngCore;
 use rayon::prelude::*;
@@ -18,7 +18,7 @@ use crate::{
 use crate::domain::EvaluationDomain;
 use crate::gpu::{self, LockedFFTKernel, LockedMultiexpKernel};
 #[cfg(any(feature = "cuda", feature = "opencl"))]
-use crate::gpu::PriorityLock;
+//use crate::gpu::PriorityLock;
 use crate::multicore::{THREAD_POOL, Worker};
 use crate::multiexp::{DensityTracker, FullDensity, multiexp};
 
