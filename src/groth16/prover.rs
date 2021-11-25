@@ -17,9 +17,7 @@ use crate::{
     Circuit, ConstraintSystem, Index, LinearCombination, SynthesisError, Variable, BELLMAN_VERSION,
 };
 #[cfg(any(feature = "cuda", feature = "opencl"))]
-use log::trace;
 use log::{debug, info};
-
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 use crate::gpu::PriorityLock;
 
@@ -301,7 +299,8 @@ where
     // } else {
     //     None
     // };
-
+    let now = Instant::now();
+    info!("calculate a_s start...");
     let mut a_s = Vec::with_capacity(num_circuits);
     let mut params_h = None;
     let worker = &worker;
@@ -316,15 +315,22 @@ where
         });
 
         let mut fft_kern = Some(LockedFFTKernel::<E>::new(log_d, priority));
+        let mut index = 1;
         for prover in provers_ref {
+            let par = Instant::now();
+            info!("par[{}] execute_fft start... ", index);
             a_s.push(execute_fft(worker, prover, &mut fft_kern)?);
+            info!("par[{}] execute_fft end cost:{:?}", index,par.elapsed());
+            index += 1;
         }
         Ok(())
     })?;
+    info!("calculate a_s end duration:{:?}", now.elapsed());
 
     let mut multiexp_kern = Some(LockedMultiexpKernel::<E>::new(log_d, priority));
+    let now = Instant::now();
+    info!("calculate h_s start...");
     let params_h = params_h.unwrap()?;
-
     let mut h_s = Vec::with_capacity(num_circuits);
     let mut params_l = None;
 
@@ -336,7 +342,10 @@ where
         });
 
         debug!("multiexp h");
+        let mut index = 1;
         for a in a_s.into_iter() {
+            let par = Instant::now();
+            info!("par[{}] multiexp start... ", index);
             h_s.push(multiexp(
                 &worker,
                 params_h.clone(),
@@ -344,9 +353,14 @@ where
                 a,
                 &mut multiexp_kern,
             ));
+            info!("par[{}] multiexp end cost:{:?}", index,par.elapsed());
+            index += 1;
         }
     });
+    info!("calculate h_s end duration:{:?}", now.elapsed());
 
+    let now = Instant::now();
+    info!("calculate l_s start...");
     let params_l = params_l.unwrap()?;
 
     let mut l_s = Vec::with_capacity(num_circuits);
@@ -369,7 +383,10 @@ where
         });
 
         debug!("multiexp l");
+        let mut index = 1;
         for aux in aux_assignments.iter() {
+            let par = Instant::now();
+            info!("par[{}] multiexp start... ", index);
             l_s.push(multiexp(
                 &worker,
                 params_l.clone(),
@@ -377,9 +394,14 @@ where
                 aux.clone(),
                 &mut multiexp_kern,
             ));
+            info!("par[{}] multiexp end cost:{:?}", index,par.elapsed());
+            index += 1;
         }
     });
+    info!("calculate l_s end duration:{:?}", now.elapsed());
 
+    let now = Instant::now();
+    info!("calculate inputs start...");
     debug!("get_a b_g1 b_g2");
     let (a_inputs_source, a_aux_source) = params_a.unwrap()?;
     let (b_g1_inputs_source, b_g1_aux_source) = params_b_g1.unwrap()?;
@@ -391,6 +413,8 @@ where
         .zip(input_assignments.iter())
         .zip(aux_assignments.iter())
         .map(|((prover, input_assignment), aux_assignment)| {
+            let par = Instant::now();
+            info!("inputs multiexp start... ");
             let a_inputs = multiexp(
                 &worker,
                 a_inputs_source.clone(),
@@ -440,7 +464,7 @@ where
                 aux_assignment.clone(),
                 &mut multiexp_kern,
             );
-
+            info!("inputs multiexp end cost:{:?}", par.elapsed());
             (
                 a_inputs,
                 a_aux,
@@ -451,6 +475,8 @@ where
             )
         })
         .collect::<Vec<_>>();
+    info!("calculate inputs end duration:{:?}", now.elapsed());
+
     drop(multiexp_kern);
     drop(a_inputs_source);
     drop(a_aux_source);

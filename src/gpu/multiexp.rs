@@ -1,17 +1,18 @@
 use super::error::{GPUError, GPUResult};
-use super::{locks, program, utils, GpuEngine};
+use super::{locks, program, GpuEngine};
 use crate::multicore::Worker;
 use crate::multiexp::{multiexp as cpu_multiexp, FullDensity};
 
 use ff::PrimeField;
 use group::{prime::PrimeCurveAffine, Group};
-use log::{error, info};
+use log::{debug, error, info};
 use pairing::Engine;
 use rust_gpu_tools::{program_closures, Device, Program};
 
 use std::any::TypeId;
 use std::ops::AddAssign;
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 const MAX_WINDOW_SIZE: usize = 10;
 const LOCAL_WORK_SIZE: usize = 256;
@@ -101,7 +102,8 @@ where
 {
     pub fn create(device: &Device, priority: bool) -> GPUResult<SingleMultiexpKernel<E>> {
         let exp_bits = exp_size::<E>() * 8;
-        let core_count = utils::get_core_count(&device.name());
+        //let core_count = utils::get_core_count(&device.name());
+        let core_count = 8704;
         let mem = device.memory();
         let max_n = calc_chunk_size::<E>(mem, core_count);
         let best_n = calc_best_chunk_size(MAX_WINDOW_SIZE, core_count, exp_bits);
@@ -237,7 +239,7 @@ where
                 let kernel = SingleMultiexpKernel::<E>::create(device, priority);
                 if let Err(ref e) = kernel {
                     error!(
-                        "Cannot initialize kernel for device '{}'! Error: {}",
+                        "Cannot initialize kernel for device '{}'! Error: {:?}",
                         device.name(),
                         e
                     );
@@ -253,13 +255,13 @@ where
         if kernels.is_empty() {
             return Err(GPUError::Simple("No working GPUs found!"));
         }
-        info!(
+        debug!(
             "Multiexp: {} working device(s) selected. (CPU utilization: {})",
             kernels.len(),
             get_cpu_utilization()
         );
         for (i, k) in kernels.iter().enumerate() {
-            info!(
+            debug!(
                 "Multiexp: Device {}: {} (Chunk-size: {})",
                 i,
                 k.program.device_name(),
@@ -300,9 +302,11 @@ where
         let error = Arc::new(RwLock::new(Ok(())));
 
         let cpu_acc = pool.scoped(|s| {
+	        let start = Instant::now();
+            info!("scoped: gpu multiexp start...");
             if n > 0 {
                 results = vec![<G as PrimeCurveAffine>::Curve::identity(); self.kernels.len()];
-
+		
                 for (((bases, exps), kern), result) in bases
                     .chunks(chunk_size)
                     .zip(exps.chunks(chunk_size))
@@ -330,6 +334,7 @@ where
                     });
                 }
             }
+            info!("scoped: gpu multiexp end cost:{:?}", start.elapsed());
 
             cpu_multiexp::<_, _, _, E, _>(
                 &pool,
