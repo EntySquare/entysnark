@@ -3,20 +3,19 @@ use std::ops::MulAssign;
 use std::sync::{Arc, RwLock};
 
 use ff::Field;
-use log::{error, info};
+use log::{error, info, debug};
 use pairing::Engine;
-use rust_gpu_tools::{Device, LocalBuffer, Program, program_closures};
+use rust_gpu_tools::{program_closures, Device, LocalBuffer, Program};
 
 use crate::gpu::{
     error::{GPUError, GPUResult},
-    GpuEngine, locks, program,
+    locks, program, GpuEngine,
 };
 use crate::multicore::THREAD_POOL;
+use std::time::Instant;
 
-const LOG2_MAX_ELEMENTS: usize = 32;
-// At most 2^32 elements is supported.
-const MAX_LOG2_RADIX: u32 = 8;
-// Radix256
+const LOG2_MAX_ELEMENTS: usize = 32; // At most 2^32 elements is supported.
+const MAX_LOG2_RADIX: u32 = 8; // Radix256
 const MAX_LOG2_LOCAL_WORK_SIZE: u32 = 7; // 128
 
 pub struct SingleFftKernel<E>
@@ -192,7 +191,7 @@ impl<E> FFTKernel<E>
         let n = inputs.len();
         let num_devices = self.kernels.len();
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
-
+        debug!("chunk_size:{}",chunk_size);
         let result = Arc::new(RwLock::new(Ok(())));
 
         THREAD_POOL.scoped(|s| {
@@ -205,8 +204,10 @@ impl<E> FFTKernel<E>
                 let result = result.clone();
                 s.execute(move || {
                     for ((input, omega), log_n) in
-                    inputs.iter_mut().zip(omegas.iter()).zip(log_ns.iter())
+                        inputs.iter_mut().zip(omegas.iter()).zip(log_ns.iter())
                     {
+                        let par = Instant::now();
+                        debug!("scope:radix_fft start... ");
                         if result.read().unwrap().is_err() {
                             break;
                         }
@@ -215,6 +216,7 @@ impl<E> FFTKernel<E>
                             *result.write().unwrap() = Err(err);
                             break;
                         }
+                        debug!("scope:radix_fft end cost:{:?}",par.elapsed());
                     }
                 });
             }
