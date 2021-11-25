@@ -2,7 +2,7 @@ extern crate scoped_threadpool;
 
 use std::any::TypeId;
 use std::ops::AddAssign;
-use std::sync::{Arc};
+use std::sync::{Arc, RwLock};
 use std::sync::mpsc;
 use std::time::Instant;
 
@@ -321,80 +321,73 @@ impl<E> MultiexpKernel<E>
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
         // println!("main MultiexpKernel.multiexp: exp_num:{} , num_devices:{} , chunk_size:{}",n,num_devices, chunk_size);
 
-        let (tx_gpu, rx_gpu) = mpsc::channel();
-        let (tx_cpu, rx_cpu) = mpsc::channel();
-        let mut scoped_pool = Pool::new(2);
-        scoped_pool.scoped(|scoped| {
-            // GPU
-            scoped.execute(move || {
-                let start = Instant::now();
-                info!("scoped: gpu multiexp start...");
-                let results = if n > 0 {
-                    // println!("MultiexpKernel.multiexp: \n total bases.len():{},\n exps.len():{},\n chunk_size:{}",bases.len(),exps.len(),chunk_size);
-                    bases
-                        .par_chunks(chunk_size)
-                        .zip(exps.par_chunks(chunk_size))
-                        .zip(self.kernels.par_iter_mut())
-                        .map(|((bases, exps), kern)| -> Result<<G as PrimeCurveAffine>::Curve, GPUError> {
-                            let mut acc = <G as PrimeCurveAffine>::Curve::identity();
-                            let single_chunk_size = (kern.n as f64 * (1 as f64 - get_cpu_utilization()) as f64).ceil() as usize;
-                            let mut set_window_size = 11; //grouprate=>window_size : 2=>11,4=>11,8=>10,16=>9
-                            let size_result = std::mem::size_of::<<G as PrimeCurveAffine>::Curve>();
-                            if size_result > 144 {
-                                set_window_size = 8; //grouprate=>window_size : 2=>8,4=>8,8=>8,16=>7
-                            }
-                            let mut times: u32 = 1;
-                            for (bases, exps) in bases.chunks(single_chunk_size).zip(exps.chunks(single_chunk_size)) {
-                                let now = Instant::now();
-                                debug!("par[{}] Single multiexp start... ", times);
-                                let result = kern.multiexp(bases, exps, bases.len(), set_window_size)?;
-                                debug!("par[{}] Single multiexp end cost:{:?}", times, now.elapsed());
-                                times += 1;
-                                acc.add_assign(&result);
-                            }
-                            Ok(acc)
-                        })
-                        .collect::<Vec<_>>()
-                } else {
-                    Vec::new()
-                };
-                info!("scoped: gpu multiexp end cost:{:?}", start.elapsed());
-                tx_gpu.send(results).unwrap();
-            });
-            // CPU
-            scoped.execute(move || {
-                let start = Instant::now();
-                info!("scoped: cpu multiexp start...");
-                let cpu_acc = cpu_multiexp::<_, _, _, E, _>(
-                    &pool,
-                    (Arc::new(cpu_bases.to_vec()), 0),
-                    FullDensity,
-                    Arc::new(cpu_exps.to_vec()),
-                    &mut None,
-                );
-                info!("scoped: cpu multiexp end cost:{:?}", start.elapsed());
-                let cpu_r = cpu_acc.wait().unwrap();
+        let mut results = Vec::new();
+        let error = Arc::new(RwLock::new(Ok(())));
 
-                tx_cpu.send(cpu_r).unwrap();
-            });
+        let cpu_acc = pool.scoped(|s| {
+            let start = Instant::now();
+            info!("scoped: gpu multiexp start...");
+            if n > 0 {
+                results = vec![<G as PrimeCurveAffine>::Curve::identity(); self.kernels.len()];
+                for (((bases, exps), kern), result) in bases
+                    .chunks(chunk_size)
+                    .zip(exps.chunks(chunk_size))
+                    .zip(self.kernels.iter_mut())
+                    .zip(results.iter_mut())
+                {
+                    let error = error.clone();
+                    s.execute(move || {
+                        let mut acc = <G as PrimeCurveAffine>::Curve::identity();
+                        let mut set_window_size = 11; //grouprate=>window_size : 2=>11,4=>11,8=>10,16=>9
+                        let size_result = std::mem::size_of::<<G as PrimeCurveAffine>::Curve>();
+                        if size_result > 144 {
+                            set_window_size = 8; //grouprate=>window_size : 2=>8,4=>8,8=>8,16=>7
+                        }
+                        let mut times: u32 = 1;
+                        for (bases, exps) in bases.chunks(kern.n).zip(exps.chunks(kern.n)) {
+                            let now = Instant::now();
+                            debug!("par[{}] Single multiexp start... ", times);
+                            if error.read().unwrap().is_err() {
+                                break;
+                            }
+
+                            match kern.multiexp(bases, exps, bases.len(), set_window_size) {
+                                Ok(result) => acc.add_assign(&result),
+                                Err(e) => {
+                                    *error.write().unwrap() = Err(e);
+                                    break;
+                                }
+                            }
+                            debug!("par[{}] Single multiexp end cost:{:?}", times, now.elapsed());
+                            times += 1;
+                        }
+                        if error.read().unwrap().is_ok() {
+                            *result = acc;
+                        }
+                    });
+                }
+            }
+            info!("scoped: gpu multiexp end cost:{:?}", start.elapsed());
+
+            cpu_multiexp::<_, _, _, E, _>(
+                &pool,
+                (Arc::new(cpu_bases.to_vec()), 0),
+                FullDensity,
+                Arc::new(cpu_exps.to_vec()),
+                &mut None,
+            )
         });
 
-        // waiting results...
-        let results = rx_gpu.recv().unwrap();
-        let cpu_r = rx_cpu.recv().unwrap();
-
+        Arc::try_unwrap(error)
+            .expect("only one ref left")
+            .into_inner()
+            .unwrap()?;
         let mut acc = <G as PrimeCurveAffine>::Curve::identity();
-
         for r in results {
-            match r {
-                Ok(r) => acc.add_assign(&r),
-                Err(e) => return Err(e),
-            }
+            acc.add_assign(&r);
         }
 
-        // acc.add_assign(&cpu_acc.wait().unwrap());
-        acc.add_assign(&cpu_r);
-
+        acc.add_assign(&cpu_acc.wait().unwrap());
         Ok(acc)
     }
 }
